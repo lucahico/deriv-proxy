@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Deriv Pro Trader - Sistema Algorítmico</title>
+<title>Deriv Pro Trader - Sistema Algorítmico Completo</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
   :root { 
@@ -20,7 +20,7 @@
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
   body { background: var(--bg); color: var(--text); padding: 15px; font-size: 13px; }
   .container { max-width: 1600px; margin: 0 auto; }
-  .grid { display: grid; grid-template-columns: 280px 1fr 320px; gap: 15px; }
+  .grid { display: grid; grid-template-columns: 300px 1fr 320px; gap: 15px; }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; margin-bottom: 15px; }
   .card h3 { color: var(--blue); margin-bottom: 10px; font-size: 14px; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
   
@@ -41,7 +41,6 @@
   .btn-primary:hover { background: #26a641; }
   .btn-danger { background: var(--red); color: white; }
   .btn-danger:hover { background: #b62d2a; }
-  .btn-warning { background: var(--yellow); color: #000; }
   .btn:disabled { background: var(--border); color: #8b949e; cursor: not-allowed; }
 
   .score-display { text-align: center; padding: 15px; border-radius: 6px; background: var(--bg); margin: 10px 0; }
@@ -51,7 +50,7 @@
   .score-low { color: var(--red); }
   .score-reason { font-size: 11px; margin-top: 5px; color: #8b949e; }
 
-  .chart-container { position: relative; height: 450px; width: 100%; }
+  .chart-container { position: relative; height: 400px; width: 100%; }
   
   .log-container { height: 250px; overflow-y: auto; background: #010409; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 11px; }
   .log-entry { margin-bottom: 3px; padding-left: 5px; border-left: 2px solid var(--border); }
@@ -90,12 +89,6 @@
     margin-bottom: 10px; 
     font-weight: bold;
     display: none;
-    animation: slideDown 0.3s ease-out;
-  }
-
-  @keyframes slideDown {
-    from { transform: translateY(-20px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
   }
 
   .strategy-info { 
@@ -114,7 +107,7 @@
   <div id="alertBanner" class="alert-banner"></div>
   
   <div class="grid">
-    <!-- PANEL IZQUIERDO: CUENTAS Y CONFIGURACIÓN -->
+    <!-- PANEL IZQUIERDO: CUENTAS, CONFIGURACIÓN Y CONTROL -->
     <div>
       <div class="card">
         <h3>👛 Mis Cuentas</h3>
@@ -136,7 +129,7 @@
       </div>
 
       <div class="card">
-        <h3>⚙️ Configuración de Estrategia</h3>
+        <h3>⚙️ Estrategia de Trading</h3>
         <div class="form-group">
           <label>Estrategia</label>
           <select id="strategy" onchange="updateStrategyInfo()">
@@ -178,7 +171,7 @@
           <label>Modo de Operación</label>
           <select id="mode">
             <option value="sim">Simulación (Solo Señales)</option>
-            <option value="live">Trading Automático</option>
+            <option value="live">Trading Automático (Real/Demo)</option>
           </select>
         </div>
         <div class="form-group">
@@ -272,6 +265,7 @@ let accountsData = { demo: null, real: null };
 let subscriptionId = null;
 let botRunning = false;
 let emergencyStopped = false;
+let analysisInterval = null;
 
 // Estado de riesgo
 let riskState = {
@@ -351,7 +345,6 @@ const TA = {
     return TA.ema(tr, period);
   },
 
-  // Calcular duración óptima basada en volatilidad
   calculateDuration: (candles) => {
     if (candles.length < 50) return 5;
     
@@ -362,12 +355,11 @@ const TA = {
     const lastATR = atr[atr.length - 1] || 0;
     const lastClose = closes[closes.length - 1];
     
-    // Ratio de volatilidad
     const volRatio = lastATR / lastClose;
     
-    if (volRatio > 0.005) return 1; // Alta volatilidad -> 1 tick
-    if (volRatio > 0.002) return 5; // Media -> 5 ticks
-    return 15; // Baja -> 15 ticks
+    if (volRatio > 0.005) return 1;
+    if (volRatio > 0.002) return 5;
+    return 15;
   }
 };
 
@@ -403,7 +395,6 @@ const StrategyEngine = {
     let direction = null;
     const duration = TA.calculateDuration(candles);
 
-    // Estrategia A: Tendencia
     if (strategy === 'A') {
       if (lastClose > lastEma20 && lastEma20 > lastEma50 && lastRsi > 50 && lastRsi < 75) {
         score += 40; 
@@ -419,7 +410,6 @@ const StrategyEngine = {
         reasons.push("RSI en zona neutral");
       }
     }
-    // Estrategia B: Reversión
     else if (strategy === 'B') {
       if (lastClose <= lastBBLower && lastRsi < 30) {
         score += 50; 
@@ -431,7 +421,6 @@ const StrategyEngine = {
         direction = 'PUT';
       }
     }
-    // Estrategia C: Breakout
     else if (strategy === 'C') {
       const highest20 = Math.max(...highs.slice(-20));
       const lowest20 = Math.min(...lows.slice(-20));
@@ -446,7 +435,6 @@ const StrategyEngine = {
       }
     }
 
-    // Penalización por rango lateral
     if (Math.abs(lastEma20 - lastEma50) < (lastClose * 0.001)) {
       score -= 20;
       reasons.push("Mercado lateral (penalización)");
@@ -471,7 +459,6 @@ const RiskManager = {
   },
 
   updateBalance: (newBalance) => {
-    const prev = riskState.currentBalance;
     riskState.currentBalance = parseFloat(newBalance);
     riskState.dailyPnl = riskState.currentBalance - riskState.initialBalance;
     updateStats();
@@ -514,7 +501,6 @@ const RiskManager = {
         showAlert(`⚠️ Racha de ${riskState.lossStreak} pérdidas. Pausa de 15 min activada.`);
         log(`Pausa automática: ${riskState.lossStreak} pérdidas consecutivas`, 'error');
       }
-      // Martingala controlada: máximo 2 niveles
       if (riskState.lossStreak <= 2) {
         riskState.currentStake = riskState.baseStake * Math.pow(2, riskState.lossStreak);
       } else {
@@ -560,14 +546,12 @@ function connect() {
 }
 
 function handleMessage(data) {
-  // Lista de cuentas
   if (data.type === 'ACCOUNTS_LIST') {
     log(`📋 Recibidas ${data.accounts.length} cuentas`, 'info');
     processAccounts(data.accounts);
     return;
   }
 
-  // Conectado a cuenta específica
   if (data.type === 'CONNECTED') {
     log(`✅ Conectado a cuenta: ${data.account_id}`, 'success');
     document.getElementById('statusBadge').textContent = 'Conectado';
@@ -589,7 +573,6 @@ function handleMessage(data) {
     return;
   }
 
-  // Balance
   if (data.msg_type === 'balance') {
     const balance = parseFloat(data.balance.balance);
     const currency = data.balance.currency;
@@ -603,12 +586,15 @@ function handleMessage(data) {
       document.getElementById('realBalance').textContent = balance.toFixed(2) + ' ' + currency;
     }
     
-    RiskManager.updateBalance(balance);
+    if (riskState.initialBalance === 0) {
+      RiskManager.init(balance);
+    } else {
+      RiskManager.updateBalance(balance);
+    }
     log(`💰 Saldo: ${balance.toFixed(2)} ${currency}`, 'success');
     return;
   }
 
-  // Histórico de velas
   if (data.msg_type === 'history') {
     candles = data.history.prices.map((p, i) => ({
       time: data.history.times[i],
@@ -623,7 +609,6 @@ function handleMessage(data) {
     return;
   }
 
-  // Velas OHLC en tiempo real
   if (data.msg_type === 'ohlc') {
     const ohlc = data.ohlc;
     const candle = {
@@ -647,7 +632,6 @@ function handleMessage(data) {
     return;
   }
 
-  // Propuesta de operación
   if (data.msg_type === 'proposal') {
     if (data.error) {
       log(`Error en propuesta: ${data.error.message}`, 'error');
@@ -659,7 +643,6 @@ function handleMessage(data) {
     return;
   }
 
-  // Compra ejecutada
   if (data.msg_type === 'buy') {
     if (data.error) {
       log(`Error en compra: ${data.error.message}`, 'error');
@@ -670,7 +653,6 @@ function handleMessage(data) {
     return;
   }
 
-  // Contrato cerrado (resultado)
   if (data.msg_type === 'proposal_open_contract' && data.proposal_open_contract.is_sold) {
     const contract = data.proposal_open_contract;
     const profit = parseFloat(contract.profit);
@@ -771,19 +753,31 @@ function startBot() {
     return;
   }
   
+  if (candles.length < 50) {
+    log("⚠️ Esperando más datos de mercado (mínimo 50 velas)...", 'error');
+    return;
+  }
+  
   botRunning = true;
   document.getElementById('btnStart').disabled = true;
   document.getElementById('btnStop').disabled = false;
   document.getElementById('statusBadge').textContent = 'Trading';
   document.getElementById('statusBadge').className = 'status-badge status-trading';
   
-  log("🤖 Bot iniciado. Analizando mercado...", 'success');
+  log("🤖 Bot iniciado. Analizando mercado cada 5 segundos...", 'success');
+  
+  // Analizar inmediatamente y luego cada 5 segundos
   analyzeMarket();
+  analysisInterval = setInterval(analyzeMarket, 5000);
 }
 
 function stopBot() {
   botRunning = false;
   emergencyStopped = true;
+  if (analysisInterval) {
+    clearInterval(analysisInterval);
+    analysisInterval = null;
+  }
   document.getElementById('btnStop').disabled = true;
   document.getElementById('statusBadge').textContent = 'Detenido';
   document.getElementById('statusBadge').className = 'status-badge status-disconnected';
@@ -823,7 +817,7 @@ function executeTrade(direction, duration) {
   
   window.pendingTrade = { direction, duration, stake };
   
-  log(`Solicitando propuesta: ${direction} | $${stake} | ${duration}t`, 'trade');
+  log(`Solicitando propuesta: ${direction} | $${stake.toFixed(2)} | ${duration}t`, 'trade');
   
   ws.send(JSON.stringify({
     proposal: 1,
