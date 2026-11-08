@@ -3,14 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Deriv Pro Trader</title>
+<title>Deriv Pro Trader - Sistema Algorítmico</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-  :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --green: #2ea043; --red: #da3633; --blue: #58a6ff; --yellow: #d29922; }
+  :root { 
+    --bg: #0d1117; 
+    --card: #161b22; 
+    --border: #30363d; 
+    --text: #c9d1d9; 
+    --green: #2ea043; 
+    --red: #da3633; 
+    --blue: #58a6ff; 
+    --yellow: #d29922;
+    --purple: #a371f7;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
   body { background: var(--bg); color: var(--text); padding: 15px; font-size: 13px; }
-  .container { max-width: 1400px; margin: 0 auto; }
-  .grid { display: grid; grid-template-columns: 300px 1fr 300px; gap: 15px; }
+  .container { max-width: 1600px; margin: 0 auto; }
+  .grid { display: grid; grid-template-columns: 280px 1fr 320px; gap: 15px; }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; margin-bottom: 15px; }
   .card h3 { color: var(--blue); margin-bottom: 10px; font-size: 14px; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
   
@@ -19,35 +29,90 @@
   .account-btn:hover { border-color: var(--blue); }
   .account-btn.active { border-color: var(--green); background: #1a4d2e; }
   .account-btn .type { font-size: 10px; color: #8b949e; text-transform: uppercase; }
-  .account-btn .balance { font-size: 18px; font-weight: bold; color: var(--green); margin-top: 3px; }
+  .account-btn .balance { font-size: 16px; font-weight: bold; color: var(--green); margin-top: 3px; }
   .account-btn .id { font-size: 10px; color: #8b949e; margin-top: 2px; }
 
   .form-group { margin-bottom: 10px; }
   .form-group label { display: block; color: #8b949e; margin-bottom: 3px; font-size: 11px; }
   select, input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 6px; border-radius: 4px; }
   
-  .btn { width: 100%; padding: 8px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 5px; }
+  .btn { width: 100%; padding: 10px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 5px; transition: 0.2s; }
   .btn-primary { background: var(--green); color: white; }
+  .btn-primary:hover { background: #26a641; }
   .btn-danger { background: var(--red); color: white; }
+  .btn-danger:hover { background: #b62d2a; }
+  .btn-warning { background: var(--yellow); color: #000; }
   .btn:disabled { background: var(--border); color: #8b949e; cursor: not-allowed; }
 
-  .chart-container { position: relative; height: 400px; width: 100%; }
+  .score-display { text-align: center; padding: 15px; border-radius: 6px; background: var(--bg); margin: 10px 0; }
+  .score-val { font-size: 32px; font-weight: bold; }
+  .score-high { color: var(--green); }
+  .score-med { color: var(--yellow); }
+  .score-low { color: var(--red); }
+  .score-reason { font-size: 11px; margin-top: 5px; color: #8b949e; }
+
+  .chart-container { position: relative; height: 450px; width: 100%; }
   
-  .log-container { height: 200px; overflow-y: auto; background: #010409; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 11px; }
+  .log-container { height: 250px; overflow-y: auto; background: #010409; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 11px; }
   .log-entry { margin-bottom: 3px; padding-left: 5px; border-left: 2px solid var(--border); }
   .log-info { border-color: var(--blue); color: var(--blue); }
   .log-success { border-color: var(--green); color: var(--green); }
   .log-error { border-color: var(--red); color: var(--red); }
   .log-trade { border-color: var(--yellow); color: var(--yellow); }
+  .log-signal { border-color: var(--purple); color: var(--purple); }
 
-  .status-badge { display: inline-block; padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+  .status-badge { display: inline-block; padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: bold; }
   .status-connected { background: #1a4d2e; color: var(--green); }
   .status-disconnected { background: #4d1a1a; color: var(--red); }
+  .status-trading { background: #1a4d2e; color: var(--green); animation: pulse 2s infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-item { background: var(--bg); padding: 8px; border-radius: 4px; }
+  .stat-label { font-size: 10px; color: #8b949e; }
+  .stat-value { font-size: 14px; font-weight: bold; color: var(--green); }
+  .stat-value.red { color: var(--red); }
+
+  .trade-list { max-height: 200px; overflow-y: auto; }
+  .trade-item { display: flex; justify-content: space-between; padding: 6px; border-bottom: 1px solid var(--border); font-size: 11px; }
+  .win { color: var(--green); } 
+  .loss { color: var(--red); }
+
+  .alert-banner { 
+    background: var(--yellow); 
+    color: #000; 
+    padding: 10px; 
+    border-radius: 6px; 
+    margin-bottom: 10px; 
+    font-weight: bold;
+    display: none;
+    animation: slideDown 0.3s ease-out;
+  }
+
+  @keyframes slideDown {
+    from { transform: translateY(-20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  .strategy-info { 
+    background: var(--bg); 
+    padding: 10px; 
+    border-radius: 4px; 
+    margin-top: 10px;
+    font-size: 11px;
+    border-left: 3px solid var(--purple);
+  }
 </style>
 </head>
 <body>
 
 <div class="container">
+  <div id="alertBanner" class="alert-banner"></div>
+  
   <div class="grid">
     <!-- PANEL IZQUIERDO: CUENTAS Y CONFIGURACIÓN -->
     <div>
@@ -71,8 +136,20 @@
       </div>
 
       <div class="card">
-        <h3>⚙️ Configuración</h3>
+        <h3>⚙️ Configuración de Estrategia</h3>
         <div class="form-group">
+          <label>Estrategia</label>
+          <select id="strategy" onchange="updateStrategyInfo()">
+            <option value="A">A - Tendencia con Confirmación</option>
+            <option value="B">B - Reversión a la Media</option>
+            <option value="C">C - Breakout de Rango</option>
+          </select>
+        </div>
+        <div class="strategy-info" id="strategyInfo">
+          <strong>Tendencia:</strong> Opera a favor de EMA20>EMA50 con RSI confirmado
+        </div>
+        
+        <div class="form-group" style="margin-top: 10px;">
           <label>Activo</label>
           <select id="symbol" onchange="changeSymbol()">
             <option value="R_10">Volatility 10 Index</option>
@@ -96,28 +173,71 @@
       </div>
 
       <div class="card">
-        <h3>📊 Estadísticas</h3>
-        <div style="display: flex; justify-content: space-between; margin: 5px 0;">
-          <span>Saldo Actual:</span>
-          <span id="currentBalance" style="font-weight: bold; color: var(--green);">---</span>
+        <h3>🤖 Control del Bot</h3>
+        <div class="form-group">
+          <label>Modo de Operación</label>
+          <select id="mode">
+            <option value="sim">Simulación (Solo Señales)</option>
+            <option value="live">Trading Automático</option>
+          </select>
         </div>
-        <div style="display: flex; justify-content: space-between; margin: 5px 0;">
-          <span>Cuenta Activa:</span>
-          <span id="activeAccount" style="font-weight: bold;">---</span>
+        <div class="form-group">
+          <label>Stake Base ($)</label>
+          <input type="number" id="stake" value="0.35" min="0.35" step="0.01">
         </div>
-        <div style="display: flex; justify-content: space-between; margin: 5px 0;">
-          <span>Velas Cargadas:</span>
-          <span id="candlesCount" style="font-weight: bold;">0</span>
+        <button id="btnStart" class="btn btn-primary" onclick="startBot()">▶ INICIAR BOT</button>
+        <button id="btnStop" class="btn btn-danger" onclick="stopBot()" disabled>🛑 DETENER TODO</button>
+      </div>
+
+      <div class="card">
+        <h3>📊 Estadísticas del Día</h3>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <div class="stat-label">Saldo Actual</div>
+            <div class="stat-value" id="currentBalance">---</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">P&L Diario</div>
+            <div class="stat-value" id="dailyPnl">0.00</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Trades</div>
+            <div class="stat-value" id="tradesCount">0/20</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Win Rate</div>
+            <div class="stat-value" id="winRate">0%</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Racha Pérdidas</div>
+            <div class="stat-value red" id="lossStreak">0</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Próximo Stake</div>
+            <div class="stat-value" id="nextStake">0.35</div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- PANEL CENTRAL: GRÁFICO -->
+    <!-- PANEL CENTRAL: GRÁFICO Y ANÁLISIS -->
     <div>
       <div class="card">
         <h3>📈 Gráfico en Tiempo Real - <span id="chartSymbol">R_75</span></h3>
+        <div class="score-display">
+          <div style="font-size: 11px; color: #8b949e;">SCORE DE OPORTUNIDAD</div>
+          <div class="score-val score-low" id="oppScore">0</div>
+          <div class="score-reason" id="oppReason">Esperando datos de mercado...</div>
+        </div>
         <div class="chart-container">
           <canvas id="mainChart"></canvas>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>📋 Operaciones Recientes</h3>
+        <div class="trade-list" id="tradeList">
+          <div style="text-align: center; color: #8b949e; padding: 10px;">Sin operaciones aún</div>
         </div>
       </div>
     </div>
@@ -128,13 +248,20 @@
         <h3>📝 Registro del Sistema</h3>
         <div class="log-container" id="logContainer"></div>
       </div>
+
+      <div class="card">
+        <h3>⚠️ Alertas y Avisos</h3>
+        <div id="alertsList" style="font-size: 11px; color: #8b949e;">
+          Sin alertas activas
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
 <script>
 // ==========================================
-// CONFIGURACIÓN
+// CONFIGURACIÓN Y ESTADO GLOBAL
 // ==========================================
 const SERVER_URL = "wss://deriv-proxy-hwhi.onrender.com";
 let ws = null;
@@ -143,48 +270,263 @@ let candles = [];
 let currentAccountId = null;
 let accountsData = { demo: null, real: null };
 let subscriptionId = null;
+let botRunning = false;
+let emergencyStopped = false;
+
+// Estado de riesgo
+let riskState = {
+  initialBalance: 0,
+  currentBalance: 0,
+  dailyPnl: 0,
+  tradesToday: 0,
+  wins: 0,
+  losses: 0,
+  lossStreak: 0,
+  baseStake: 0.35,
+  currentStake: 0.35,
+  isPaused: false,
+  pauseEndTime: 0,
+  maxDailyLossPct: 0.05,
+  maxDailyTrades: 20,
+  maxLossStreak: 3
+};
 
 // ==========================================
-// INICIALIZACIÓN DEL GRÁFICO
+// ANÁLISIS TÉCNICO
 // ==========================================
-function initChart() {
-  const ctx = document.getElementById('mainChart').getContext('2d');
-  chart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: [],
-      datasets: [{
-        label: 'Precio',
-        data: [],
-        borderColor: '#58a6ff',
-        backgroundColor: 'rgba(88, 166, 255, 0.1)',
-        borderWidth: 2,
-        fill: true,
-        tension: 0.1,
-        pointRadius: 0
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { 
-          grid: { color: '#30363d' }, 
-          ticks: { color: '#8b949e', maxTicksLimit: 8, font: { size: 10 } }
-        },
-        y: { 
-          grid: { color: '#30363d' }, 
-          ticks: { color: '#8b949e' }
-        }
+const TA = {
+  ema: (data, period) => {
+    if (data.length < period) return [];
+    const k = 2 / (period + 1);
+    let emaArray = [data[0]];
+    for (let i = 1; i < data.length; i++) {
+      emaArray.push(data[i] * k + emaArray[i - 1] * (1 - k));
+    }
+    return emaArray;
+  },
+  
+  rsi: (data, period = 14) => {
+    if (data.length < period + 1) return [];
+    let gains = 0, losses = 0;
+    for (let i = 1; i <= period; i++) {
+      const diff = data[i] - data[i - 1];
+      if (diff > 0) gains += diff; else losses -= diff;
+    }
+    let avgGain = gains / period, avgLoss = losses / period;
+    const rsiArray = [];
+    for (let i = period + 1; i < data.length; i++) {
+      const diff = data[i] - data[i - 1];
+      avgGain = (avgGain * (period - 1) + (diff > 0 ? diff : 0)) / period;
+      avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period;
+      const rs = avgGain / (avgLoss === 0 ? 1 : avgLoss);
+      rsiArray.push(100 - (100 / (1 + rs)));
+    }
+    return rsiArray;
+  },
+  
+  bollinger: (data, period = 20, mult = 2) => {
+    if (data.length < period) return { upper: [], lower: [], mid: [] };
+    const upper = [], lower = [], mid = [];
+    for (let i = period - 1; i < data.length; i++) {
+      const slice = data.slice(i - period + 1, i + 1);
+      const mean = slice.reduce((a, b) => a + b, 0) / period;
+      const variance = slice.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / period;
+      const std = Math.sqrt(variance);
+      mid.push(mean);
+      upper.push(mean + mult * std);
+      lower.push(mean - mult * std);
+    }
+    return { upper, lower, mid };
+  },
+  
+  atr: (highs, lows, closes, period = 14) => {
+    if (closes.length < period + 1) return [];
+    let tr = [highs[0] - lows[0]];
+    for (let i = 1; i < closes.length; i++) {
+      const h_l = highs[i] - lows[i];
+      const h_c = Math.abs(highs[i] - closes[i - 1]);
+      const l_c = Math.abs(lows[i] - closes[i - 1]);
+      tr.push(Math.max(h_l, h_c, l_c));
+    }
+    return TA.ema(tr, period);
+  },
+
+  // Calcular duración óptima basada en volatilidad
+  calculateDuration: (candles) => {
+    if (candles.length < 50) return 5;
+    
+    const closes = candles.map(c => c.close);
+    const highs = candles.map(c => c.high);
+    const lows = candles.map(c => c.low);
+    const atr = TA.atr(highs, lows, closes, 14);
+    const lastATR = atr[atr.length - 1] || 0;
+    const lastClose = closes[closes.length - 1];
+    
+    // Ratio de volatilidad
+    const volRatio = lastATR / lastClose;
+    
+    if (volRatio > 0.005) return 1; // Alta volatilidad -> 1 tick
+    if (volRatio > 0.002) return 5; // Media -> 5 ticks
+    return 15; // Baja -> 15 ticks
+  }
+};
+
+// ==========================================
+// MOTOR DE ESTRATEGIAS
+// ==========================================
+const StrategyEngine = {
+  evaluate: (strategy, candles) => {
+    if (candles.length < 50) {
+      return { score: 0, reason: "Acumulando datos...", direction: null, duration: 5 };
+    }
+
+    const closes = candles.map(c => c.close);
+    const highs = candles.map(c => c.high);
+    const lows = candles.map(c => c.low);
+    const lastClose = closes[closes.length - 1];
+
+    const ema20 = TA.ema(closes, 20);
+    const ema50 = TA.ema(closes, 50);
+    const rsi = TA.rsi(closes, 14);
+    const bb = TA.bollinger(closes, 20, 2);
+    const atr = TA.atr(highs, lows, closes, 14);
+
+    const lastEma20 = ema20[ema20.length - 1];
+    const lastEma50 = ema50[ema50.length - 1];
+    const lastRsi = rsi[rsi.length - 1] || 50;
+    const lastBBUpper = bb.upper[bb.upper.length - 1];
+    const lastBBLower = bb.lower[bb.lower.length - 1];
+    const lastATR = atr[atr.length - 1];
+
+    let score = 0;
+    let reasons = [];
+    let direction = null;
+    const duration = TA.calculateDuration(candles);
+
+    // Estrategia A: Tendencia
+    if (strategy === 'A') {
+      if (lastClose > lastEma20 && lastEma20 > lastEma50 && lastRsi > 50 && lastRsi < 75) {
+        score += 40; 
+        reasons.push("Tendencia alcista (EMA20>EMA50)");
+        direction = 'CALL';
+      } else if (lastClose < lastEma20 && lastEma20 < lastEma50 && lastRsi < 50 && lastRsi > 25) {
+        score += 40; 
+        reasons.push("Tendencia bajista (EMA20<EMA50)");
+        direction = 'PUT';
+      }
+      if (lastRsi > 40 && lastRsi < 60) {
+        score += 30; 
+        reasons.push("RSI en zona neutral");
       }
     }
-  });
-}
+    // Estrategia B: Reversión
+    else if (strategy === 'B') {
+      if (lastClose <= lastBBLower && lastRsi < 30) {
+        score += 50; 
+        reasons.push("Precio en Banda Inferior + RSI Sobreventa");
+        direction = 'CALL';
+      } else if (lastClose >= lastBBUpper && lastRsi > 70) {
+        score += 50; 
+        reasons.push("Precio en Banda Superior + RSI Sobrecompra");
+        direction = 'PUT';
+      }
+    }
+    // Estrategia C: Breakout
+    else if (strategy === 'C') {
+      const highest20 = Math.max(...highs.slice(-20));
+      const lowest20 = Math.min(...lows.slice(-20));
+      if (lastClose > highest20) {
+        score += 45; 
+        reasons.push("Ruptura alcista de máximo 20 velas");
+        direction = 'CALL';
+      } else if (lastClose < lowest20) {
+        score += 45; 
+        reasons.push("Ruptura bajista de mínimo 20 velas");
+        direction = 'PUT';
+      }
+    }
+
+    // Penalización por rango lateral
+    if (Math.abs(lastEma20 - lastEma50) < (lastClose * 0.001)) {
+      score -= 20;
+      reasons.push("Mercado lateral (penalización)");
+    }
+
+    score = Math.max(0, Math.min(100, score));
+    return { score, reason: reasons.join(', ') || "Sin confluencia", direction, duration };
+  }
+};
 
 // ==========================================
-// CONEXIÓN AL SERVIDOR
+// GESTIÓN DE RIESGO
+// ==========================================
+const RiskManager = {
+  init: (balance) => {
+    riskState.initialBalance = parseFloat(balance);
+    riskState.currentBalance = riskState.initialBalance;
+    riskState.baseStake = Math.max(0.35, riskState.initialBalance * 0.01);
+    riskState.currentStake = riskState.baseStake;
+    updateStats();
+    log(`Riesgo inicializado. Stake base: $${riskState.baseStake.toFixed(2)}`, 'info');
+  },
+
+  updateBalance: (newBalance) => {
+    const prev = riskState.currentBalance;
+    riskState.currentBalance = parseFloat(newBalance);
+    riskState.dailyPnl = riskState.currentBalance - riskState.initialBalance;
+    updateStats();
+  },
+
+  canTrade: () => {
+    if (emergencyStopped) return { allowed: false, reason: "Parada de emergencia" };
+    if (riskState.tradesToday >= riskState.maxDailyTrades) {
+      return { allowed: false, reason: "Límite de 20 trades diarios alcanzado" };
+    }
+    if (riskState.dailyPnl <= -(riskState.initialBalance * riskState.maxDailyLossPct)) {
+      return { allowed: false, reason: "Stop Loss diario (5%) alcanzado" };
+    }
+    if (riskState.dailyPnl >= (riskState.initialBalance * 0.10)) {
+      return { allowed: false, reason: "Take Profit diario (10%) alcanzado" };
+    }
+    
+    if (riskState.isPaused && Date.now() < riskState.pauseEndTime) {
+      const minsLeft = Math.ceil((riskState.pauseEndTime - Date.now()) / 60000);
+      return { allowed: false, reason: `Pausa por racha. Quedan ${minsLeft} min` };
+    } else if (riskState.isPaused && Date.now() >= riskState.pauseEndTime) {
+      riskState.isPaused = false;
+      log("Pausa de riesgo finalizada. Reanudando.", 'info');
+    }
+    return { allowed: true, reason: "OK" };
+  },
+
+  recordTrade: (isWin) => {
+    riskState.tradesToday++;
+    if (isWin) {
+      riskState.wins++;
+      riskState.lossStreak = 0;
+      riskState.currentStake = riskState.baseStake;
+    } else {
+      riskState.losses++;
+      riskState.lossStreak++;
+      if (riskState.lossStreak >= riskState.maxLossStreak) {
+        riskState.isPaused = true;
+        riskState.pauseEndTime = Date.now() + 15 * 60 * 1000;
+        showAlert(`⚠️ Racha de ${riskState.lossStreak} pérdidas. Pausa de 15 min activada.`);
+        log(`Pausa automática: ${riskState.lossStreak} pérdidas consecutivas`, 'error');
+      }
+      // Martingala controlada: máximo 2 niveles
+      if (riskState.lossStreak <= 2) {
+        riskState.currentStake = riskState.baseStake * Math.pow(2, riskState.lossStreak);
+      } else {
+        riskState.currentStake = riskState.baseStake;
+      }
+    }
+    updateStats();
+  }
+};
+
+// ==========================================
+// CONEXIÓN Y DATOS
 // ==========================================
 function connect() {
   if (ws && ws.readyState === WebSocket.OPEN) return;
@@ -217,26 +559,21 @@ function connect() {
   };
 }
 
-// ==========================================
-// MANEJO DE MENSAJES
-// ==========================================
 function handleMessage(data) {
-  // Lista de cuentas recibida
+  // Lista de cuentas
   if (data.type === 'ACCOUNTS_LIST') {
     log(`📋 Recibidas ${data.accounts.length} cuentas`, 'info');
     processAccounts(data.accounts);
     return;
   }
 
-  // Confirmación de conexión a cuenta específica
+  // Conectado a cuenta específica
   if (data.type === 'CONNECTED') {
     log(`✅ Conectado a cuenta: ${data.account_id}`, 'success');
     document.getElementById('statusBadge').textContent = 'Conectado';
     document.getElementById('statusBadge').className = 'status-badge status-connected';
     currentAccountId = data.account_id;
-    document.getElementById('activeAccount').textContent = data.account_id;
     
-    // Pedir saldo y suscribirse a velas automáticamente
     requestBalance();
     subscribeToCandles();
     return;
@@ -252,13 +589,12 @@ function handleMessage(data) {
     return;
   }
 
-  // Respuesta de balance
+  // Balance
   if (data.msg_type === 'balance') {
     const balance = parseFloat(data.balance.balance);
     const currency = data.balance.currency;
     const accId = data.balance.loginid;
     
-    // Actualizar el saldo de la cuenta correspondiente
     if (accountsData.demo && accountsData.demo.id === accId) {
       accountsData.demo.balance = balance;
       document.getElementById('demoBalance').textContent = balance.toFixed(2) + ' ' + currency;
@@ -267,8 +603,8 @@ function handleMessage(data) {
       document.getElementById('realBalance').textContent = balance.toFixed(2) + ' ' + currency;
     }
     
-    document.getElementById('currentBalance').textContent = balance.toFixed(2) + ' ' + currency;
-    log(`💰 Saldo actualizado: ${balance.toFixed(2)} ${currency}`, 'success');
+    RiskManager.updateBalance(balance);
+    log(`💰 Saldo: ${balance.toFixed(2)} ${currency}`, 'success');
     return;
   }
 
@@ -276,27 +612,14 @@ function handleMessage(data) {
   if (data.msg_type === 'history') {
     candles = data.history.prices.map((p, i) => ({
       time: data.history.times[i],
-      price: parseFloat(p)
+      open: parseFloat(p),
+      high: parseFloat(p),
+      low: parseFloat(p),
+      close: parseFloat(p)
     }));
     updateChart();
-    log(`📊 Histórico cargado: ${candles.length} velas`, 'info');
-    return;
-  }
-
-  // Ticks en tiempo real (cuando style=ticks)
-  if (data.msg_type === 'tick') {
-    const price = parseFloat(data.tick.quote);
-    const time = data.tick.epoch;
-    
-    // Actualizar última vela o crear nueva
-    const lastCandle = candles[candles.length - 1];
-    if (lastCandle && time - lastCandle.time < 60) {
-      lastCandle.price = price;
-    } else {
-      candles.push({ time, price });
-      if (candles.length > 100) candles.shift();
-    }
-    updateChart();
+    log(`📊 Histórico: ${candles.length} velas`, 'info');
+    if (botRunning) analyzeMarket();
     return;
   }
 
@@ -305,7 +628,10 @@ function handleMessage(data) {
     const ohlc = data.ohlc;
     const candle = {
       time: parseInt(ohlc.open_time),
-      price: parseFloat(ohlc.close)
+      open: parseFloat(ohlc.open),
+      high: parseFloat(ohlc.high),
+      low: parseFloat(ohlc.low),
+      close: parseFloat(ohlc.close)
     };
     
     const lastCandle = candles[candles.length - 1];
@@ -314,22 +640,47 @@ function handleMessage(data) {
     } else {
       candles.push(candle);
       if (candles.length > 100) candles.shift();
+      log("Nueva vela cerrada", 'info');
+      if (botRunning) analyzeMarket();
     }
     updateChart();
     return;
   }
 
-  // Confirmación de suscripción
-  if (data.msg_type === 'subscription') {
-    subscriptionId = data.subscription.id;
-    log(`📡 Suscripción activa (ID: ${subscriptionId})`, 'info');
+  // Propuesta de operación
+  if (data.msg_type === 'proposal') {
+    if (data.error) {
+      log(`Error en propuesta: ${data.error.message}`, 'error');
+      return;
+    }
+    const proposalId = data.proposal.id;
+    log(`Propuesta recibida (ID: ${proposalId}). Ejecutando...`, 'trade');
+    ws.send(JSON.stringify({ buy: proposalId, price: data.proposal.ask_price }));
+    return;
+  }
+
+  // Compra ejecutada
+  if (data.msg_type === 'buy') {
+    if (data.error) {
+      log(`Error en compra: ${data.error.message}`, 'error');
+      return;
+    }
+    log(`✅ Operación ejecutada: ID ${data.buy.contract_id}`, 'success');
+    addTradeToHistory('LIVE', window.pendingTrade?.direction || 'N/A', riskState.currentStake, 'En curso');
+    return;
+  }
+
+  // Contrato cerrado (resultado)
+  if (data.msg_type === 'proposal_open_contract' && data.proposal_open_contract.is_sold) {
+    const contract = data.proposal_open_contract;
+    const profit = parseFloat(contract.profit);
+    const isWin = profit > 0;
+    RiskManager.recordTrade(isWin);
+    log(`Contrato cerrado: ${isWin ? 'GANADA' : 'PERDIDA'} (${profit.toFixed(2)})`, isWin ? 'success' : 'error');
     return;
   }
 }
 
-// ==========================================
-// PROCESAR LISTA DE CUENTAS
-// ==========================================
 function processAccounts(accounts) {
   accounts.forEach(acc => {
     if (acc.type === 'demo' && (!accountsData.demo || acc.status === 'active')) {
@@ -343,17 +694,15 @@ function processAccounts(accounts) {
     }
   });
 
-  // Auto-seleccionar cuenta real si existe
   if (accountsData.real) {
     selectAccount('real');
   } else if (accountsData.demo) {
     selectAccount('demo');
+  } else {
+    log("⚠️ No hay cuentas disponibles", 'error');
   }
 }
 
-// ==========================================
-// SELECCIONAR CUENTA
-// ==========================================
 function selectAccount(type) {
   const account = accountsData[type];
   if (!account) {
@@ -361,48 +710,38 @@ function selectAccount(type) {
     return;
   }
 
-  // Actualizar UI
   document.getElementById('btnDemo').classList.toggle('active', type === 'demo');
   document.getElementById('btnReal').classList.toggle('active', type === 'real');
   
   log(`🎯 Seleccionando cuenta ${type}: ${account.id}`, 'info');
   
-  // Enviar al servidor para que se conecte a esa cuenta
   ws.send(JSON.stringify({
     type: 'SELECT_ACCOUNT',
     account_id: account.id
   }));
 }
 
-// ==========================================
-// SOLICITAR SALDO
-// ==========================================
 function requestBalance() {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
   }
 }
 
-// ==========================================
-// SUSCRIBIRSE A VELAS
-// ==========================================
 function subscribeToCandles() {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   
   const symbol = document.getElementById('symbol').value;
   const granularity = parseInt(document.getElementById('granularity').value);
   
-  // Cancelar suscripción anterior si existe
   if (subscriptionId) {
     ws.send(JSON.stringify({ forget: subscriptionId }));
     subscriptionId = null;
   }
 
-  // Limpiar velas anteriores
   candles = [];
   updateChart();
 
-  log(`📡 Suscribiendo a ${symbol} (granularidad: ${granularity}s)...`, 'info');
+  log(`📡 Suscribiendo a ${symbol} (${granularity}s)...`, 'info');
   
   ws.send(JSON.stringify({
     ticks_history: symbol,
@@ -417,9 +756,6 @@ function subscribeToCandles() {
   document.getElementById('chartSymbol').textContent = symbol;
 }
 
-// ==========================================
-// CAMBIAR ACTIVO
-// ==========================================
 function changeSymbol() {
   const symbol = document.getElementById('symbol').value;
   log(`🔄 Cambiando a ${symbol}...`, 'info');
@@ -427,8 +763,113 @@ function changeSymbol() {
 }
 
 // ==========================================
-// ACTUALIZAR GRÁFICO
+// BOT Y ANÁLISIS
 // ==========================================
+function startBot() {
+  if (emergencyStopped) {
+    log("No se puede iniciar tras parada de emergencia. Recarga la página.", 'error');
+    return;
+  }
+  
+  botRunning = true;
+  document.getElementById('btnStart').disabled = true;
+  document.getElementById('btnStop').disabled = false;
+  document.getElementById('statusBadge').textContent = 'Trading';
+  document.getElementById('statusBadge').className = 'status-badge status-trading';
+  
+  log("🤖 Bot iniciado. Analizando mercado...", 'success');
+  analyzeMarket();
+}
+
+function stopBot() {
+  botRunning = false;
+  emergencyStopped = true;
+  document.getElementById('btnStop').disabled = true;
+  document.getElementById('statusBadge').textContent = 'Detenido';
+  document.getElementById('statusBadge').className = 'status-badge status-disconnected';
+  showAlert("🛑 Bot detenido por el usuario");
+  log("🛑 Bot detenido manualmente", 'error');
+}
+
+function analyzeMarket() {
+  if (!botRunning || candles.length < 50) return;
+
+  const strategy = document.getElementById('strategy').value;
+  const eval = StrategyEngine.evaluate(strategy, candles);
+  
+  updateScore(eval.score, eval.reason);
+
+  if (eval.score >= 70 && eval.direction) {
+    const riskCheck = RiskManager.canTrade();
+    if (riskCheck.allowed) {
+      const mode = document.getElementById('mode').value;
+      const duration = eval.duration;
+      
+      if (mode === 'sim') {
+        log(`[SIMULACIÓN] Señal: ${eval.direction} | Score: ${eval.score} | Duración: ${duration}t`, 'signal');
+        addTradeToHistory('SIM', eval.direction, 0, `Score: ${eval.score}`);
+      } else {
+        executeTrade(eval.direction, duration);
+      }
+    } else {
+      log(`Señal ignorada: ${riskCheck.reason}`, 'info');
+    }
+  }
+}
+
+function executeTrade(direction, duration) {
+  const stake = riskState.currentStake;
+  const symbol = document.getElementById('symbol').value;
+  
+  window.pendingTrade = { direction, duration, stake };
+  
+  log(`Solicitando propuesta: ${direction} | $${stake} | ${duration}t`, 'trade');
+  
+  ws.send(JSON.stringify({
+    proposal: 1,
+    amount: stake,
+    basis: 'stake',
+    contract_type: direction,
+    currency: 'USD',
+    duration: duration,
+    duration_unit: 't',
+    symbol: symbol
+  }));
+}
+
+// ==========================================
+// UI Y UTILIDADES
+// ==========================================
+function initChart() {
+  const ctx = document.getElementById('mainChart').getContext('2d');
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Precio',
+        data: [],
+        borderColor: '#58a6ff',
+        backgroundColor: 'rgba(88, 166, 255, 0.1)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.1,
+        pointRadius: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e', maxTicksLimit: 8, font: { size: 10 } } },
+        y: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } }
+      }
+    }
+  });
+}
+
 function updateChart() {
   if (!chart || candles.length === 0) return;
   
@@ -436,15 +877,68 @@ function updateChart() {
     const date = new Date(c.time * 1000);
     return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
   });
-  chart.data.datasets[0].data = candles.map(c => c.price);
+  chart.data.datasets[0].data = candles.map(c => c.close);
   chart.update();
-  
-  document.getElementById('candlesCount').textContent = candles.length;
 }
 
-// ==========================================
-// SISTEMA DE LOGS
-// ==========================================
+function updateScore(score, reason) {
+  const el = document.getElementById('oppScore');
+  el.textContent = score;
+  el.className = 'score-val ' + (score >= 70 ? 'score-high' : score >= 40 ? 'score-med' : 'score-low');
+  document.getElementById('oppReason').textContent = reason;
+}
+
+function updateStats() {
+  document.getElementById('currentBalance').textContent = riskState.currentBalance.toFixed(2);
+  const pnlEl = document.getElementById('dailyPnl');
+  pnlEl.textContent = (riskState.dailyPnl >= 0 ? '+' : '') + riskState.dailyPnl.toFixed(2);
+  pnlEl.className = 'stat-value ' + (riskState.dailyPnl >= 0 ? '' : 'red');
+  document.getElementById('tradesCount').textContent = `${riskState.tradesToday}/${riskState.maxDailyTrades}`;
+  
+  const winRate = riskState.tradesToday > 0 ? ((riskState.wins / riskState.tradesToday) * 100).toFixed(0) : 0;
+  document.getElementById('winRate').textContent = winRate + '%';
+  document.getElementById('lossStreak').textContent = riskState.lossStreak;
+  document.getElementById('nextStake').textContent = riskState.currentStake.toFixed(2);
+}
+
+function addTradeToHistory(mode, direction, stake, status) {
+  const list = document.getElementById('tradeList');
+  if (list.children.length === 1 && list.children[0].textContent.includes('Sin operaciones')) {
+    list.innerHTML = '';
+  }
+  
+  const div = document.createElement('div');
+  div.className = 'trade-item';
+  const time = new Date().toLocaleTimeString();
+  div.innerHTML = `<span>${time} | ${mode} | ${direction}</span> <span>$${stake.toFixed(2)}</span> <span>${status}</span>`;
+  list.insertBefore(div, list.firstChild);
+  if (list.children.length > 10) list.removeChild(list.lastChild);
+}
+
+function showAlert(message) {
+  const banner = document.getElementById('alertBanner');
+  banner.textContent = message;
+  banner.style.display = 'block';
+  setTimeout(() => { banner.style.display = 'none'; }, 5000);
+  
+  const alertsList = document.getElementById('alertsList');
+  const time = new Date().toLocaleTimeString();
+  alertsList.innerHTML = `<div style="margin-bottom: 5px; padding: 5px; background: var(--bg); border-radius: 4px;"><strong>${time}:</strong> ${message}</div>` + alertsList.innerHTML;
+}
+
+function updateStrategyInfo() {
+  const strategy = document.getElementById('strategy').value;
+  const info = document.getElementById('strategyInfo');
+  
+  const descriptions = {
+    'A': '<strong>Tendencia:</strong> Opera a favor de EMA20>EMA50 con RSI confirmado (40-60)',
+    'B': '<strong>Reversión:</strong> Detecta precios en Bandas de Bollinger con RSI extremo (<30 o >70)',
+    'C': '<strong>Breakout:</strong> Identifica rupturas de máximos/mínimos de 20 velas'
+  };
+  
+  info.innerHTML = descriptions[strategy];
+}
+
 function log(msg, type = 'info') {
   const container = document.getElementById('logContainer');
   const time = new Date().toLocaleTimeString();
@@ -454,7 +948,6 @@ function log(msg, type = 'info') {
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
   
-  // Limitar logs a 100 entradas
   while (container.children.length > 100) {
     container.removeChild(container.firstChild);
   }
@@ -466,6 +959,7 @@ function log(msg, type = 'info') {
 window.onload = () => {
   initChart();
   connect();
+  updateStrategyInfo();
   log("🚀 Sistema iniciado. Esperando cuentas...", 'info');
 };
 </script>
