@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deriv Pro Algo Trader v1.0</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --green: #2ea043; --red: #da3633; --blue: #58a6ff; --yellow: #d29922; }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+  body { background: var(--bg); color: var(--text); padding: 15px; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: 300px 1fr 300px; gap: 15px; max-width: 1400px; margin: 0 auto; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+  .card h3 { color: var(--blue); margin-bottom: 10px; font-size: 14px; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+  
+  .stat-box { display: flex; justify-content: space-between; margin: 5px 0; }
+  .stat-val { font-weight: bold; color: var(--green); }
+  .stat-val.red { color: var(--red); }
+  
+  .form-group { margin-bottom: 10px; }
+  .form-group label { display: block; color: #8b949e; margin-bottom: 3px; font-size: 11px; }
+  select, input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 6px; border-radius: 4px; }
+  
+  .btn { width: 100%; padding: 8px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 5px; transition: 0.2s; }
+  .btn-primary { background: var(--green); color: white; }
+  .btn-primary:hover { background: #26a641; }
+  .btn-danger { background: var(--red); color: white; }
+  .btn-danger:hover { background: #b62d2a; }
+  .btn:disabled { background: var(--border); color: #8b949e; cursor: not-allowed; }
+
+  .score-display { text-align: center; padding: 10px; border-radius: 6px; background: var(--bg); margin: 10px 0; }
+  .score-val { font-size: 24px; font-weight: bold; }
+  .score-high { color: var(--green); }
+  .score-med { color: var(--yellow); }
+  .score-low { color: var(--red); }
+
+  .log-container { height: 250px; overflow-y: auto; background: #010409; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 11px; }
+  .log-entry { margin-bottom: 4px; border-left: 2px solid var(--border); padding-left: 5px; }
+  .log-info { border-color: var(--blue); color: var(--blue); }
+  .log-success { border-color: var(--green); color: var(--green); }
+  .log-error { border-color: var(--red); color: var(--red); }
+  .log-trade { border-color: var(--yellow); color: var(--yellow); }
+
+  .chart-container { position: relative; height: 400px; width: 100%; }
+  
+  .trade-list { max-height: 200px; overflow-y: auto; }
+  .trade-item { display: flex; justify-content: space-between; padding: 5px; border-bottom: 1px solid var(--border); font-size: 11px; }
+  .win { color: var(--green); } .loss { color: var(--red); }
+
+  .emergency-banner { background: var(--red); color: white; text-align: center; padding: 10px; font-weight: bold; display: none; margin-bottom: 15px; border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<div id="emergencyBanner" class="emergency-banner">🚨 TRADING DETENIDO: Límite de riesgo alcanzado o botón de emergencia presionado 🚨</div>
+
+<div class="grid">
+  <!-- PANEL IZQUIERDO: CONTROL -->
+  <div>
+    <div class="card">
+      <h3>⚙️ Configuración</h3>
+      <div class="form-group">
+        <label>Estrategia</label>
+        <select id="strategy">
+          <option value="A">A - Tendencia con Confirmación</option>
+          <option value="B">B - Reversión a la Media</option>
+          <option value="C">C - Breakout de Rango</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Activo</label>
+        <select id="symbol">
+          <option value="R_75">Volatility 75 Index</option>
+          <option value="R_100">Volatility 100 Index</option>
+          <option value="R_50">Volatility 50 Index</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Stake Base ($)</label>
+        <input type="number" id="stake" value="0.35" min="0.35" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Modo</label>
+        <select id="mode">
+          <option value="sim">Simulación (Solo Señales)</option>
+          <option value="live">Trading Automático (Real/Demo)</option>
+        </select>
+      </div>
+      <button id="btnStart" class="btn btn-primary" onclick="BotController.start()">▶ INICIAR BOT</button>
+      <button id="btnStop" class="btn btn-danger" onclick="BotController.emergencyStop()" disabled>🛑 DETENER TODO</button>
+    </div>
+
+    <div class="card">
+      <h3>🛡️ Gestión de Riesgo</h3>
+      <div class="stat-box"><span>Saldo:</span> <span class="stat-val" id="balance">0.00</span></div>
+      <div class="stat-box"><span>P&L Diario:</span> <span class="stat-val" id="dailyPnl">0.00</span></div>
+      <div class="stat-box"><span>Trades Hoy:</span> <span class="stat-val" id="tradesCount">0/20</span></div>
+      <div class="stat-box"><span>Racha Pérdidas:</span> <span class="stat-val red" id="lossStreak">0</span></div>
+      <div class="stat-box"><span>Próximo Stake:</span> <span class="stat-val" id="nextStake">0.35</span></div>
+    </div>
+  </div>
+
+  <!-- PANEL CENTRAL: GRÁFICO Y ANÁLISIS -->
+  <div>
+    <div class="card">
+      <h3>📊 Análisis de Mercado en Tiempo Real</h3>
+      <div class="score-display">
+        <div style="font-size: 11px; color: #8b949e;">SCORE DE OPORTUNIDAD</div>
+        <div class="score-val score-low" id="oppScore">0</div>
+        <div id="oppReason" style="font-size: 11px; margin-top: 5px;">Esperando datos...</div>
+      </div>
+      <div class="chart-container">
+        <canvas id="mainChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL DERECHO: OPERACIONES Y LOGS -->
+  <div>
+    <div class="card">
+      <h3>📈 Operaciones Recientes</h3>
+      <div class="trade-list" id="tradeList">
+        <div style="text-align: center; color: #8b949e; padding: 10px;">Sin operaciones</div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>📝 Logs del Sistema</h3>
+      <div class="log-container" id="logContainer"></div>
+      <button class="btn" style="background: var(--border); color: var(--text); margin-top: 5px;" onclick="Logger.exportCSV()">📥 Exportar CSV</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==========================================
+// 1. UTILIDADES Y ANÁLISIS TÉCNICO (TA)
+// ==========================================
+const TA = {
+  ema: (data, period) => {
+    const k = 2 / (period + 1);
+    let emaArray = [data[0]];
+    for (let i = 1; i < data.length; i++) {
+      emaArray.push(data[i] * k + emaArray[i - 1] * (1 - k));
+    }
+    return emaArray;
+  },
+  rsi: (data, period = 14) => {
+    let gains = 0, losses = 0;
+    for (let i = 1; i <= period; i++) {
+      const diff = data[i] - data[i - 1];
+      if (diff > 0) gains += diff; else losses -= diff;
+    }
+    let avgGain = gains / period, avgLoss = losses / period;
+    const rsiArray = [];
+    for (let i = period + 1; i < data.length; i++) {
+      const diff = data[i] - data[i - 1];
+      avgGain = (avgGain * (period - 1) + (diff > 0 ? diff : 0)) / period;
+      avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period;
+      const rs = avgGain / (avgLoss === 0 ? 1 : avgLoss);
+      rsiArray.push(100 - (100 / (1 + rs)));
+    }
+    return rsiArray;
+  },
+  bollinger: (data, period = 20, mult = 2) => {
+    const upper = [], lower = [], mid = [];
+    for (let i = period - 1; i < data.length; i++) {
+      const slice = data.slice(i - period + 1, i + 1);
+      const mean = slice.reduce((a, b) => a + b, 0) / period;
+      const variance = slice.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / period;
+      const std = Math.sqrt(variance);
+      mid.push(mean);
+      upper.push(mean + mult * std);
+      lower.push(mean - mult * std);
+    }
+    return { upper, lower, mid };
+  },
+  atr: (highs, lows, closes, period = 14) => {
+    let tr = [highs[0] - lows[0]];
+    for (let i = 1; i < closes.length; i++) {
+      const h_l = highs[i] - lows[i];
+      const h_c = Math.abs(highs[i] - closes[i - 1]);
+      const l_c = Math.abs(lows[i] - closes[i - 1]);
+      tr.push(Math.max(h_l, h_c, l_c));
+    }
+    return TA.ema(tr, period);
+  }
+};
+
+// ==========================================
+// 2. GESTIÓN DE RIESGO
+// ==========================================
+class RiskManager {
+  constructor() {
+    this.initialBalance = 0;
+    this.currentBalance = 0;
+    this.dailyPnl = 0;
+    this.tradesToday = 0;
+    this.lossStreak = 0;
+    this.baseStake = 0.35;
+    this.currentStake = 0.35;
+    this.isPaused = false;
+    this.pauseEndTime = 0;
+    this.maxDailyLossPct = 0.05; // 5%
+    this.maxDailyTrades = 20;
+    this.maxLossStreak = 3;
+    this.pauseDurationMs = 15 * 60 * 1000; // 15 min
+  }
+
+  init(balance) {
+    this.initialBalance = parseFloat(balance);
+    this.currentBalance = this.initialBalance;
+    this.baseStake = Math.max(0.35, this.initialBalance * 0.01); // 1% o 0.35
+    this.currentStake = this.baseStake;
+    Logger.info(`Riesgo inicializado. Stake base: $${this.baseStake.toFixed(2)}`);
+  }
+
+  updateBalance(newBalance) {
+    const prev = this.currentBalance;
+    this.currentBalance = parseFloat(newBalance);
+    this.dailyPnl = this.currentBalance - this.initialBalance;
+    this.updateUI();
+  }
+
+  canTrade() {
+    if (BotController.isEmergencyStopped) return { allowed: false, reason: "Parada de emergencia" };
+    if (this.tradesToday >= this.maxDailyTrades) return { allowed: false, reason: "Límite de 20 trades diarios alcanzado" };
+    if (this.dailyPnl <= -(this.initialBalance * this.maxDailyLossPct)) return { allowed: false, reason: "Stop Loss diario (5%) alcanzado" };
+    if (this.dailyPnl >= (this.initialBalance * 0.10)) return { allowed: false, reason: "Take Profit diario (10%) alcanzado" };
+    
+    if (this.isPaused && Date.now() < this.pauseEndTime) {
+      const minsLeft = Math.ceil((this.pauseEndTime - Date.now()) / 60000);
+      return { allowed: false, reason: `Pausa por racha de pérdidas. Quedan ${minsLeft} min` };
+    } else if (this.isPaused && Date.now() >= this.pauseEndTime) {
+      this.isPaused = false;
+      Logger.info("Pausa de riesgo finalizada. Reanudando operaciones.");
+    }
+    return { allowed: true, reason: "OK" };
+  }
+
+  recordTrade(isWin) {
+    this.tradesToday++;
+    if (isWin) {
+      this.lossStreak = 0;
+      this.currentStake = this.baseStake;
+    } else {
+      this.lossStreak++;
+      if (this.lossStreak >= this.maxLossStreak) {
+        this.isPaused = true;
+        this.pauseEndTime = Date.now() + this.pauseDurationMs;
+        Logger.error(`Racha de ${this.lossStreak} pérdidas. Pausa de 15 min activada.`);
+      }
+      // Martingala controlada: máximo 2 niveles (base -> x2 -> x4)
+      if (this.lossStreak <= 2) {
+        this.currentStake = this.baseStake * Math.pow(2, this.lossStreak);
+      } else {
+        this.currentStake = this.baseStake; // Reset tras 2 niveles
+      }
+    }
+    this.updateUI();
+  }
+
+  updateUI() {
+    document.getElementById('balance').textContent = this.currentBalance.toFixed(2);
+    const pnlEl = document.getElementById('dailyPnl');
+    pnlEl.textContent = (this.dailyPnl >= 0 ? '+' : '') + this.dailyPnl.toFixed(2);
+    pnlEl.className = 'stat-val ' + (this.dailyPnl >= 0 ? '' : 'red');
+    document.getElementById('tradesCount').textContent = `${this.tradesToday}/${this.maxDailyTrades}`;
+    document.getElementById('lossStreak').textContent = this.lossStreak;
+    document.getElementById('nextStake').textContent = this.currentStake.toFixed(2);
+  }
+}
+
+// ==========================================
+// 3. MOTOR DE ESTRATEGIAS
+// ==========================================
+class StrategyEngine {
+  static evaluate(strategy, candles) {
+    if (candles.length < 50) return { score: 0, reason: "Acumulando datos...", direction: null, duration: 5 };
+
+    const closes = candles.map(c => c.close);
+    const highs = candles.map(c => c.high);
+    const lows = candles.map(c => c.low);
+    const lastClose = closes[closes.length - 1];
+
+    const ema20 = TA.ema(closes, 20);
+    const ema50 = TA.ema(closes, 50);
+    const rsi = TA.rsi(closes, 14);
+    const bb = TA.bollinger(closes, 20, 2);
+    const atr = TA.atr(highs, lows, closes, 14);
+
+    const lastEma20 = ema20[ema20.length - 1];
+    const lastEma50 = ema50[ema50.length - 1];
+    const lastRsi = rsi[rsi.length - 1] || 50;
+    const lastBBUpper = bb.upper[bb.upper.length - 1];
+    const lastBBLower = bb.lower[bb.lower.length - 1];
+    const lastATR = atr[atr.length - 1];
+
+    let score = 0;
+    let reasons = [];
+    let direction = null; // 'CALL' o 'PUT'
+    let duration = 5; // ticks por defecto
+
+    // Cálculo de duración basado en ATR (Volatilidad)
+    if (lastATR > (lastClose * 0.005)) duration = 1; // Alta vol -> 1 tick
+    else if (lastATR > (lastClose * 0.002)) duration = 5; // Media -> 5 ticks
+    else duration = 15; // Baja -> 15 ticks
+
+    if (strategy === 'A') { // Tendencia
+      if (lastClose > lastEma20 && lastEma20 > lastEma50 && lastRsi > 50 && lastRsi < 75) {
+        score += 40; reasons.push("Tendencia alcista (EMA)");
+        direction = 'CALL';
+      } else if (lastClose < lastEma20 && lastEma20 < lastEma50 && lastRsi < 50 && lastRsi > 25) {
+        score += 40; reasons.push("Tendencia bajista (EMA)");
+        direction = 'PUT';
+      }
+      if (lastRsi > 40 && lastRsi < 60) score += 30; // Confirmación RSI neutro
+    } 
+    else if (strategy === 'B') { // Reversión
+      if (lastClose <= lastBBLower && lastRsi < 30) {
+        score += 50; reasons.push("Precio en Banda Inferior + RSI Sobreventa");
+        direction = 'CALL';
+      } else if (lastClose >= lastBBUpper && lastRsi > 70) {
+        score += 50; reasons.push("Precio en Banda Superior + RSI Sobrecompra");
+        direction = 'PUT';
+      }
+    }
+    else if (strategy === 'C') { // Breakout
+      const highest20 = Math.max(...highs.slice(-20));
+      const lowest20 = Math.min(...lows.slice(-20));
+      if (lastClose > highest20) {
+        score += 45; reasons.push("Ruptura alcista de máximo 20 velas");
+        direction = 'CALL';
+      } else if (lastClose < lowest20) {
+        score += 45; reasons.push("Ruptura bajista de mínimo 20 velas");
+        direction = 'PUT';
+      }
+    }
+
+    // Penalización por baja volatilidad o rango lateral extremo
+    if (Math.abs(lastEma20 - lastEma50) < (lastClose * 0.001)) score -= 20;
+
+    score = Math.max(0, Math.min(100, score));
+    return { score, reason: reasons.join(', ') || "Sin confluencia", direction, duration };
+  }
+}
+
+// ==========================================
+// 4. EJECUTOR DE OPERACIONES
+// ==========================================
+class TradeExecutor {
+  static async execute(direction, stake, duration) {
+    const symbol = document.getElementById('symbol').value;
+    const currency = RiskManager.currentBalance > 10 ? 'USD' : 'USD'; // Simplificado
+    
+    Logger.trade(`Solicitando propuesta: ${direction} | Stake: $${stake} | Duración: ${duration}t`);
+    
+    // Paso 1: Proposal
+    ConnectionManager.ws.send(JSON.stringify({
+      proposal: 1,
+      amount: stake,
+      basis: 'stake',
+      contract_type: direction,
+      currency: currency,
+      duration: duration,
+      duration_unit: 't',
+      symbol: symbol
+    }));
+
+    // Esperar respuesta de proposal (manejado en onmessage)
+    return new Promise(resolve => {
+      window.pendingProposal = { resolve, direction, stake, duration, symbol };
+    });
+  }
+}
+
+// ==========================================
+// 5. GESTOR DE CONEXIÓN Y DATOS
+// ==========================================
+const ConnectionManager = {
+  ws: null,
+  candles: [],
+  currentCandle: null,
+  isSubscribed: false,
+
+  connect() {
+    this.ws = new WebSocket("wss://deriv-proxy-hwhi.onrender.com"); // TU URL DE RENDER
+    
+    this.ws.onopen = () => {
+      Logger.info("Conectado al servidor proxy.");
+    };
+
+    this.ws.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      
+      if (data.type === 'SYSTEM' || data.type === 'ERROR') {
+        Logger.info(data.message);
+        return;
+      }
+
+      if (data.msg_type === 'account_info') {
+        Logger.success(`Cuenta autenticada: ${data.loginid}`);
+        this.ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+      }
+
+      if (data.msg_type === 'balance') {
+        RiskManager.updateBalance(data.balance.balance);
+        if (!this.isSubscribed && BotController.isRunning) {
+          this.subscribeTicks();
+        }
+      }
+
+      if (data.msg_type === 'proposal') {
+        if (data.error) {
+          Logger.error(`Error en propuesta: ${data.error.message}`);
+          if (window.pendingProposal) window.pendingProposal.resolve(false);
+        } else {
+          const proposalId = data.proposal.id;
+          Logger.trade(`Propuesta aceptada (ID: ${proposalId}). Ejecutando compra...`);
+          this.ws.send(JSON.stringify({ buy: proposalId, price: data.proposal.ask_price }));
+        }
+      }
+
+      if (data.msg_type === 'buy') {
+        if (data.error) {
+          Logger.error(`Error en compra: ${data.error.message}`);
+          if (window.pendingProposal) window.pendingProposal.resolve(false);
+        } else {
+          Logger.success(`✅ OPERACIÓN EJECUTADA: ${window.pendingProposal.direction} | ID: ${data.buy.contract_id}`);
+          if (window.pendingProposal) window.pendingProposal.resolve(true);
+        }
+        window.pendingProposal = null;
+      }
+
+      if (data.msg_type === 'proposal_open_contract') {
+        // Actualizar P&L en tiempo real si es necesario
+      }
+
+      if (data.msg_type === 'history') {
+        this.candles = data.history.prices.map((p, i) => ({
+          time: data.history.times[i],
+          open: parseFloat(p), high: parseFloat(p), low: parseFloat(p), close: parseFloat(p)
+        }));
+        Logger.info(`Histórico cargado: ${this.candles.length} velas.`);
+        BotController.analyze();
+      }
+
+      if (data.msg_type === 'ohlc') {
+        const ohlc = data.ohlc;
+        const candle = {
+          time: parseInt(ohlc.open_time),
+          open: parseFloat(ohlc.open),
+          high: parseFloat(ohlc.high),
+          low: parseFloat(ohlc.low),
+          close: parseFloat(ohlc.close)
+        };
+        
+        if (this.currentCandle && this.currentCandle.time === candle.time) {
+          this.currentCandle = candle; // Actualizar vela actual
+          this.candles[this.candles.length - 1] = candle;
+        } else {
+          this.currentCandle = candle;
+          this.candles.push(candle);
+          if (this.candles.length > 100) this.candles.shift(); // Memory leak prevention
+          Logger.info("Nueva vela cerrada. Analizando...");
+          BotController.analyze();
+        }
+        UIManager.updateChart(this.candles);
+      }
+    };
+
+    this.ws.onclose = () => {
+      Logger.error("Conexión cerrada. Reconectando en 5s...");
+      setTimeout(() => this.connect(), 5000);
+    };
+  },
+
+  subscribeTicks() {
+    const symbol = document.getElementById('symbol').value;
+    Logger.info(`Suscribiendo a velas de ${symbol}...`);
+    this.ws.send(JSON.stringify({
+      ticks_history: symbol,
+      adjust_start_time: 1,
+      count: 50,
+      end: "latest",
+      start: 1,
+      style: "candles",
+      granularity: 60, // 1 minuto
+      subscribe: 1
+    }));
+    this.isSubscribed = true;
+  }
+};
+
+// ==========================================
+// 6. CONTROLADOR PRINCIPAL (ORQUESTADOR)
+// ==========================================
+const BotController = {
+  isRunning: false,
+  isEmergencyStopped: false,
+  analysisInterval: null,
+
+  start() {
+    if (this.isEmergencyStopped) {
+      Logger.error("No se puede iniciar tras una parada de emergencia. Recarga la página.");
+      return;
+    }
+    this.isRunning = true;
+    document.getElementById('btnStart').disabled = true;
+    document.getElementById('btnStop').disabled = false;
+    Logger.info("🤖 Bot iniciado. Esperando datos de mercado...");
+    
+    if (!ConnectionManager.isSubscribed) {
+      ConnectionManager.subscribeTicks();
+    }
+  },
+
+  emergencyStop() {
+    this.isRunning = false;
+    this.isEmergencyStopped = true;
+    document.getElementById('emergencyBanner').style.display = 'block';
+    document.getElementById('btnStop').disabled = true;
+    Logger.error("🛑 PARADA DE EMERGENCIA ACTIVADA.");
+  },
+
+  analyze() {
+    if (!this.isRunning) return;
+
+    const strategy = document.getElementById('strategy').value;
+    const eval = StrategyEngine.evaluate(strategy, ConnectionManager.candles);
+    
+    UIManager.updateScore(eval.score, eval.reason);
+
+    if (eval.score >= 70 && eval.direction) {
+      const riskCheck = RiskManager.canTrade();
+      if (riskCheck.allowed) {
+        const mode = document.getElementById('mode').value;
+        if (mode === 'sim') {
+          Logger.trade(`[SIMULACIÓN] Señal detectada: ${eval.direction} (Score: ${eval.score})`);
+          UIManager.addTradeToHistory('SIM', eval.direction, 0, 'Pendiente');
+        } else {
+          this.executeTrade(eval.direction, eval.duration);
+        }
+      } else {
+        Logger.info(`Señal ignorada por riesgo: ${riskCheck.reason}`);
+      }
+    }
+  },
+
+  async executeTrade(direction, duration) {
+    const stake = RiskManager.currentStake;
+    const success = await TradeExecutor.execute(direction, stake, duration);
+    
+    // Simulación de resultado para el ejemplo (en producción, escuchar 'proposal_open_contract' con 'is_sold')
+    // Aquí asumimos que el sistema espera el cierre. Para simplificar el código base, 
+    // registraremos la operación y el RiskManager se actualizará cuando llegue el mensaje de 'balance' actualizado.
+    UIManager.addTradeToHistory('LIVE', direction, stake, 'En curso');
+  }
+};
+
+// ==========================================
+// 7. INTERFAZ DE USUARIO Y LOGS
+// ==========================================
+const UIManager = {
+  chart: null,
+  
+  initChart() {
+    const ctx = document.getElementById('mainChart').getContext('2d');
+    this.chart = new Chart(ctx, {
+      type: 'line',
+      data: { labels: [], datasets: [{ label: 'Precio', data: [], borderColor: '#58a6ff', borderWidth: 1, pointRadius: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { x: { display: false }, y: { grid: { color: '#30363d' } } } }
+    });
+  },
+
+  updateChart(candles) {
+    if (!this.chart) return;
+    this.chart.data.labels = candles.map(c => new Date(c.time * 1000).toLocaleTimeString());
+    this.chart.data.datasets[0].data = candles.map(c => c.close);
+    this.chart.update();
+  },
+
+  updateScore(score, reason) {
+    const el = document.getElementById('oppScore');
+    el.textContent = score;
+    el.className = 'score-val ' + (score >= 70 ? 'score-high' : score >= 40 ? 'score-med' : 'score-low');
+    document.getElementById('oppReason').textContent = reason;
+  },
+
+  addTradeToHistory(mode, direction, stake, status) {
+    const list = document.getElementById('tradeList');
+    const div = document.createElement('div');
+    div.className = 'trade-item';
+    div.innerHTML = `<span>${mode} | ${direction}</span> <span>$${stake}</span> <span class="${status === 'Ganada' ? 'win' : status === 'Perdida' ? 'loss' : ''}">${status}</span>`;
+    list.insertBefore(div, list.firstChild);
+    if (list.children.length > 10) list.removeChild(list.lastChild);
+  }
+};
+
+const Logger = {
+  info: (msg) => this.log(msg, 'log-info'),
+  success: (msg) => this.log(msg, 'log-success'),
+  error: (msg) => this.log(msg, 'log-error'),
+  trade: (msg) => this.log(msg, 'log-trade'),
+  
+  log: (msg, className) => {
+    const container = document.getElementById('logContainer');
+    const time = new Date().toLocaleTimeString();
+    const div = document.createElement('div');
+    div.className = `log-entry ${className}`;
+    div.textContent = `[${time}] ${msg}`;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+  },
+
+  exportCSV: () => {
+    alert("Función de exportación CSV lista para implementar con los datos del array de trades.");
+  }
+};
+
+// ==========================================
+// INICIALIZACIÓN
+// ==========================================
+window.onload = () => {
+  UIManager.initChart();
+  ConnectionManager.connect();
+};
+</script>
+</body>
+</html>
