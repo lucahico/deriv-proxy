@@ -89,7 +89,6 @@
   <div id="alertBanner" class="alert-banner"></div>
   
   <div class="grid">
-    <!-- PANEL IZQUIERDO -->
     <div>
       <div class="card">
         <h3>👛 Mis Cuentas</h3>
@@ -189,7 +188,6 @@
       </div>
     </div>
 
-    <!-- PANEL CENTRAL -->
     <div>
       <div class="card">
         <h3>📈 Gráfico en Tiempo Real - <span id="chartSymbol">R_75</span></h3>
@@ -209,7 +207,6 @@
       </div>
     </div>
 
-    <!-- PANEL DERECHO -->
     <div>
       <div class="card">
         <h3>📝 Registro del Sistema</h3>
@@ -242,7 +239,9 @@ let reconnectAttempts = 0;
 let maxReconnectAttempts = 10;
 let isReconnecting = false;
 let heartbeatInterval = null;
-let userSelectedAccount = false; // Flag para saber si el usuario eligió manualmente
+let userSelectedAccount = false;
+let currentSymbol = 'R_75';
+let currentGranularity = 300;
 
 let riskState = {
   initialBalance: 0, currentBalance: 0, dailyPnl: 0,
@@ -332,11 +331,18 @@ const StrategyEngine = {
     const ema50 = TA.ema(closes, 50);
     const rsi = TA.rsi(closes, 14);
     const bb = TA.bollinger(closes, 20, 2);
+    
+    // FIX: Validar que los indicadores tengan valores
+    if (ema20.length === 0 || ema50.length === 0) {
+      return { score: 0, reason: "Indicadores no listos", direction: null, duration: 5 };
+    }
+    
     const lastEma20 = ema20[ema20.length - 1];
     const lastEma50 = ema50[ema50.length - 1];
-    const lastRsi = rsi[rsi.length - 1] || 50;
-    const lastBBUpper = bb.upper[bb.upper.length - 1];
-    const lastBBLower = bb.lower[bb.lower.length - 1];
+    const lastRsi = rsi.length > 0 ? rsi[rsi.length - 1] : 50;
+    const lastBBUpper = bb.upper.length > 0 ? bb.upper[bb.upper.length - 1] : lastClose;
+    const lastBBLower = bb.lower.length > 0 ? bb.lower[bb.lower.length - 1] : lastClose;
+    
     let score = 0, reasons = [], direction = null;
     const duration = TA.calculateDuration(candles);
 
@@ -363,12 +369,13 @@ const StrategyEngine = {
 };
 
 // ==========================================
-// MOTOR DE IA CON LSTM
+// MOTOR DE IA CON LSTM (CORREGIDO)
 // ==========================================
 const AIEngine = {
   createModel: () => {
     const model = tf.sequential();
-    model.add(tf.layers.lstm({ units: 50, inputShape: [50, 3], returnSequences: false }));
+    model.add(tf.layers.lstm({ units: 32, inputShape: [50, 3], returnSequences: false }));
+    model.add(tf.layers.dense({ units: 16, activation: 'relu' }));
     model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
     model.compile({ optimizer: tf.train.adam(0.001), loss: 'binaryCrossentropy', metrics: ['accuracy'] });
     return model;
@@ -395,51 +402,73 @@ const AIEngine = {
       const currentPrice = candles[i + 49].close;
       labels.push(futurePrice > currentPrice ? 1 : 0);
     }
+    if (features.length === 0) return null;
     return { features: tf.tensor3d(features), labels: tf.tensor2d(labels, [labels.length, 1]) };
   },
   train: async (candles) => {
     if (aiState.isTraining) return;
     const data = AIEngine.prepareData(candles);
-    if (!data) { log("IA: Necesito más datos para entrenar (mínimo 51 velas)", 'ai'); return; }
+    if (!data) { log("IA: Necesito más datos (mínimo 51 velas)", 'ai'); return; }
+    
     aiState.isTraining = true;
-    log("🧠 IA: Iniciando entrenamiento del modelo LSTM...", 'ai');
+    log("🧠 IA: Iniciando entrenamiento...", 'ai');
     document.getElementById('aiModelStatus').textContent = 'Entrenando...';
+    
     try {
       if (!aiState.model) aiState.model = AIEngine.createModel();
+      
+      // FIX: Reducir épocas para evitar bloqueo
+      const epochs = aiState.trainingCount === 0 ? 3 : 5;
+      
       await aiState.model.fit(data.features, data.labels, {
-        epochs: 10, batchSize: 32, shuffle: true,
-        callbacks: { onEpochEnd: (epoch, logs) => { log(`IA: Época ${epoch + 1}/10 - Loss: ${logs.loss.toFixed(4)}`, 'ai'); } }
+        epochs: epochs,
+        batchSize: 32,
+        shuffle: true,
+        callbacks: {
+          onEpochEnd: async (epoch, logs) => {
+            log(`IA: Época ${epoch + 1}/${epochs} - Loss: ${logs.loss.toFixed(4)}`, 'ai');
+            // FIX: Ceder el hilo al navegador entre épocas
+            await new Promise(resolve => setTimeout(resolve, 50));
+            await tf.nextFrame();
+          }
+        }
       });
+      
       aiState.trainingCount++;
       document.getElementById('aiModelStatus').textContent = `Entrenado (${aiState.trainingCount}x)`;
       document.getElementById('aiTrainings').textContent = aiState.trainingCount;
-      log(`✅ IA: Modelo entrenado exitosamente. Entrenamientos: ${aiState.trainingCount}`, 'ai');
+      log(`✅ IA entrenada. Entrenamientos: ${aiState.trainingCount}`, 'ai');
     } catch (error) {
-      log(`❌ IA: Error en entrenamiento: ${error.message}`, 'error');
+      log(`❌ IA Error: ${error.message}`, 'error');
     } finally {
       aiState.isTraining = false;
-      data.features.dispose(); data.labels.dispose();
+      data.features.dispose();
+      data.labels.dispose();
     }
   },
   predict: (candles) => {
     if (!aiState.model || candles.length < 50) return { direction: null, confidence: 0, reason: "Modelo no listo" };
     const prices = candles.map(c => c.close);
-    const minPrice = Math.min(...prices.slice(-60));
-    const maxPrice = Math.max(...prices.slice(-60));
+    const sliceStart = Math.max(0, prices.length - 60);
+    const minPrice = Math.min(...prices.slice(sliceStart));
+    const maxPrice = Math.max(...prices.slice(sliceStart));
     const range = maxPrice - minPrice || 1;
-    const normalized = prices.slice(-50).map(p => (p - minPrice) / range);
+    const last50 = prices.slice(-50);
+    const normalized = last50.map(p => (p - minPrice) / range);
     const sequence = [];
     for (let i = 0; i < 50; i++) {
       const candle = candles[candles.length - 50 + i];
       const priceNorm = normalized[i];
-      const change = i > 0 ? (candle.close - candles[candles.length - 50 + i - 1].close) / candles[candles.length - 50 + i - 1].close : 0;
+      const prevCandle = i > 0 ? candles[candles.length - 50 + i - 1] : candle;
+      const change = (candle.close - prevCandle.close) / prevCandle.close;
       const volatility = Math.abs(candle.high - candle.low) / candle.close;
       sequence.push([priceNorm, change, volatility]);
     }
     const input = tf.tensor3d([sequence]);
     const prediction = aiState.model.predict(input);
     const value = prediction.dataSync()[0];
-    input.dispose(); prediction.dispose();
+    input.dispose();
+    prediction.dispose();
     const confidence = Math.abs(value - 0.5) * 200;
     const direction = value > 0.5 ? 'CALL' : 'PUT';
     return { direction, confidence, reason: `IA predice ${direction} con ${confidence.toFixed(1)}% confianza` };
@@ -451,15 +480,13 @@ const AIEngine = {
 // ==========================================
 const RiskManager = {
   init: (balance) => {
-    // Solo inicializar la primera vez
     if (riskState.initialBalance === 0) {
       riskState.initialBalance = parseFloat(balance);
       riskState.currentBalance = riskState.initialBalance;
       riskState.baseStake = Math.max(0.35, riskState.initialBalance * 0.01);
       riskState.currentStake = riskState.baseStake;
-      log(`🎯 Riesgo inicializado. Balance inicial: $${riskState.initialBalance.toFixed(2)} | Stake base: $${riskState.baseStake.toFixed(2)}`, 'info');
+      log(`🎯 Riesgo inicializado. Balance: $${riskState.initialBalance.toFixed(2)} | Stake: $${riskState.baseStake.toFixed(2)}`, 'info');
     }
-    // Actualizar saldo actual siempre (sin tocar el inicial)
     riskState.currentBalance = parseFloat(balance);
     riskState.dailyPnl = riskState.currentBalance - riskState.initialBalance;
     updateStats();
@@ -471,7 +498,7 @@ const RiskManager = {
   },
   canTrade: () => {
     if (emergencyStopped) return { allowed: false, reason: "Parada de emergencia" };
-    if (riskState.tradesToday >= riskState.maxDailyTrades) return { allowed: false, reason: "Límite de 20 trades diarios alcanzado" };
+    if (riskState.tradesToday >= riskState.maxDailyTrades) return { allowed: false, reason: "Límite de 20 trades alcanzado" };
     if (riskState.dailyPnl <= -(riskState.initialBalance * riskState.maxDailyLossPct)) return { allowed: false, reason: "Stop Loss diario (5%) alcanzado" };
     if (riskState.dailyPnl >= (riskState.initialBalance * 0.10)) return { allowed: false, reason: "Take Profit diario (10%) alcanzado" };
     if (riskState.isPaused && Date.now() < riskState.pauseEndTime) {
@@ -479,7 +506,7 @@ const RiskManager = {
       return { allowed: false, reason: `Pausa por racha. Quedan ${minsLeft} min` };
     } else if (riskState.isPaused && Date.now() >= riskState.pauseEndTime) {
       riskState.isPaused = false;
-      log("Pausa de riesgo finalizada. Reanudando.", 'info');
+      log("Pausa finalizada. Reanudando.", 'info');
     }
     return { allowed: true, reason: "OK" };
   },
@@ -492,8 +519,8 @@ const RiskManager = {
       if (riskState.lossStreak >= riskState.maxLossStreak) {
         riskState.isPaused = true;
         riskState.pauseEndTime = Date.now() + 15 * 60 * 1000;
-        showAlert(`⚠️ Racha de ${riskState.lossStreak} pérdidas. Pausa de 15 min activada.`);
-        log(`Pausa automática: ${riskState.lossStreak} pérdidas consecutivas`, 'error');
+        showAlert(`⚠️ Racha de ${riskState.lossStreak} pérdidas. Pausa 15 min.`);
+        log(`Pausa: ${riskState.lossStreak} pérdidas consecutivas`, 'error');
       }
       if (riskState.lossStreak <= 2) riskState.currentStake = riskState.baseStake * Math.pow(2, riskState.lossStreak);
       else riskState.currentStake = riskState.baseStake;
@@ -512,7 +539,7 @@ function connect() {
   isReconnecting = true;
   reconnectAttempts++;
   
-  log(`Conectando al servidor... (Intento ${reconnectAttempts}/${maxReconnectAttempts})`, 'info');
+  log(`Conectando... (Intento ${reconnectAttempts}/${maxReconnectAttempts})`, 'info');
   document.getElementById('statusBadge').textContent = 'Reconectando...';
   document.getElementById('statusBadge').className = 'status-badge status-reconnecting';
   document.getElementById('connectionInfo').textContent = `Intento ${reconnectAttempts}/${maxReconnectAttempts}`;
@@ -532,7 +559,6 @@ function connect() {
       if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'PING' }));
     }, 30000);
     
-    // Solo reconectar a la cuenta si el usuario ya eligió una
     if (currentAccountId && userSelectedAccount) {
       log(`🔄 Reconectando a cuenta ${currentAccountId}...`, 'info');
       ws.send(JSON.stringify({ type: 'SELECT_ACCOUNT', account_id: currentAccountId }));
@@ -555,12 +581,24 @@ function connect() {
     isReconnecting = false;
     if (heartbeatInterval) clearInterval(heartbeatInterval);
     
+    const shouldResubscribe = botRunning || candles.length > 0;
+    
     if (reconnectAttempts < maxReconnectAttempts) {
       const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts), 30000);
       log(`⏳ Reconectando en ${Math.round(delay/1000)}s...`, 'info');
-      setTimeout(connect, delay);
+      setTimeout(() => {
+        connect();
+        if (shouldResubscribe && userSelectedAccount) {
+          setTimeout(() => {
+            if (ws && ws.readyState === WebSocket.OPEN && currentAccountId) {
+              log("🔄 Re-suscribiendo a velas...", 'info');
+              subscribeToCandles(true);
+            }
+          }, 2000);
+        }
+      }, delay);
     } else {
-      log("❌ Máximo de intentos de reconexión alcanzado. Recarga la página.", 'error');
+      log("❌ Máximo de intentos alcanzado. Recarga la página.", 'error');
       showAlert("❌ No se pudo reconectar. Recarga la página.");
     }
   };
@@ -582,12 +620,19 @@ function handleMessage(data) {
     document.getElementById('connectionInfo').textContent = `Cuenta: ${data.account_id}`;
     currentAccountId = data.account_id;
     requestBalance();
-    subscribeToCandles(true); // Preservar velas existentes
+    subscribeToCandles(true);
     return;
   }
 
   if (data.type === 'DISCONNECTED') { log("🔌 Desconectado de Deriv", 'error'); return; }
   if (data.type === 'ERROR') { log(`❌ Error: ${data.message}`, 'error'); return; }
+
+  // FIX: Manejar confirmación de suscripción
+  if (data.msg_type === 'subscription') {
+    subscriptionId = data.subscription.id;
+    log(`📡 Suscripción activa (ID: ${subscriptionId})`, 'info');
+    return;
+  }
 
   if (data.msg_type === 'balance') {
     const balance = parseFloat(data.balance.balance);
@@ -602,7 +647,6 @@ function handleMessage(data) {
       document.getElementById('realBalance').textContent = balance.toFixed(2) + ' ' + currency;
     }
     
-    // Solo actualizar el riesgo si es la cuenta ACTIVA
     if (accId === currentAccountId) RiskManager.init(balance);
     
     log(`💰 Saldo ${accId}: ${balance.toFixed(2)} ${currency}`, 'success');
@@ -614,7 +658,6 @@ function handleMessage(data) {
       time: data.history.times[i], open: parseFloat(p), high: parseFloat(p), low: parseFloat(p), close: parseFloat(p)
     }));
     
-    // Combinar con velas existentes evitando duplicados
     const existingTimes = new Set(candles.map(c => c.time));
     newCandles.forEach(c => { if (!existingTimes.has(c.time)) candles.push(c); });
     candles.sort((a, b) => a.time - b.time);
@@ -623,26 +666,42 @@ function handleMessage(data) {
     updateChart();
     log(`📊 Histórico: ${candles.length} velas (recibidas ${newCandles.length} nuevas)`, 'info');
     
-    if (candles.length >= 51 && aiState.trainingCount < 3) AIEngine.train(candles);
+    if (candles.length >= 51 && aiState.trainingCount < 3) {
+      setTimeout(() => AIEngine.train(candles), 100);
+    }
     if (botRunning) analyzeMarket();
     return;
   }
 
+  // FIX: Corregir bug de velas duplicadas
   if (data.msg_type === 'ohlc') {
     const ohlc = data.ohlc;
+    const candleTime = parseInt(ohlc.open_time);
     const candle = {
-      time: parseInt(ohlc.open_time), open: parseFloat(ohlc.open),
-      high: parseFloat(ohlc.high), low: parseFloat(ohlc.low), close: parseFloat(ohlc.close)
+      time: candleTime,
+      open: parseFloat(ohlc.open),
+      high: parseFloat(ohlc.high),
+      low: parseFloat(ohlc.low),
+      close: parseFloat(ohlc.close)
     };
+    
     const lastCandle = candles[candles.length - 1];
-    if (lastCandle && lastCandle.time === candle.time) {
+    
+    if (lastCandle && lastCandle.time === candleTime) {
       candles[candles.length - 1] = candle;
     } else {
-      candles.push(candle);
-      if (candles.length > 100) candles = candles.slice(-100);
-      log(`🕯️ Nueva vela cerrada. Total: ${candles.length} velas`, 'info');
-      if (candles.length % 10 === 0 && candles.length >= 51) AIEngine.train(candles);
-      if (botRunning) analyzeMarket();
+      const isDuplicate = candles.some(c => c.time === candleTime);
+      if (!isDuplicate) {
+        candles.push(candle);
+        if (candles.length > 100) candles = candles.slice(-100);
+        log(`🕯️ Nueva vela. Total: ${candles.length}`, 'info');
+        
+        if (candles.length % 10 === 0 && candles.length >= 51) {
+          setTimeout(() => AIEngine.train(candles), 100);
+        }
+        
+        if (botRunning) analyzeMarket();
+      }
     }
     updateChart();
     return;
@@ -660,6 +719,13 @@ function handleMessage(data) {
     if (data.error) { log(`Error en compra: ${data.error.message}`, 'error'); return; }
     log(`✅ Operación ejecutada: ID ${data.buy.contract_id}`, 'success');
     addTradeToHistory('LIVE', window.pendingTrade?.direction || 'N/A', riskState.currentStake, 'En curso');
+    
+    // FIX: Suscribirse al estado del contrato
+    ws.send(JSON.stringify({
+      proposal_open_contract: 1,
+      contract_id: data.buy.contract_id,
+      subscribe: 1
+    }));
     return;
   }
 
@@ -674,7 +740,6 @@ function handleMessage(data) {
 }
 
 function processAccounts(accounts) {
-  // Solo actualizar la UI con los saldos, NO auto-seleccionar si el usuario ya eligió
   accounts.forEach(acc => {
     if (acc.type === 'demo') {
       accountsData.demo = acc;
@@ -687,17 +752,16 @@ function processAccounts(accounts) {
     }
   });
 
-  // Solo auto-seleccionar la PRIMERA VEZ
   if (!userSelectedAccount) {
     if (accountsData.demo) {
-      log("ℹ️ Auto-seleccionando cuenta Demo (primera carga)...", 'info');
+      log("ℹ️ Auto-seleccionando Demo (primera carga)...", 'info');
       selectAccount('demo');
     } else if (accountsData.real) {
-      log("ℹ️ Auto-seleccionando cuenta Real (primera carga)...", 'info');
+      log("ℹ️ Auto-seleccionando Real (primera carga)...", 'info');
       selectAccount('real');
     }
   } else {
-    log("✅ Cuentas actualizadas. Manteniendo cuenta seleccionada por el usuario.", 'info');
+    log("✅ Cuentas actualizadas. Manteniendo selección.", 'info');
   }
 }
 
@@ -705,16 +769,15 @@ function selectAccount(type) {
   const account = accountsData[type];
   if (!account) { log(`⚠️ No hay cuenta ${type} disponible`, 'error'); return; }
   
-  userSelectedAccount = true; // Marcar que el usuario eligió manualmente
+  userSelectedAccount = true;
 
   document.getElementById('btnDemo').classList.toggle('active', type === 'demo');
   document.getElementById('btnReal').classList.toggle('active', type === 'real');
   
   log(`🎯 Seleccionando cuenta ${type}: ${account.id}`, 'info');
   
-  // Si ya estábamos conectados a esta misma cuenta, no hacer nada
   if (currentAccountId === account.id) {
-    log(`ℹ️ Ya estás conectado a ${account.id}. Sin cambios.`, 'info');
+    log(`ℹ️ Ya conectado a ${account.id}.`, 'info');
     return;
   }
   
@@ -730,18 +793,19 @@ function subscribeToCandles(preserveCandles = false) {
   
   const symbol = document.getElementById('symbol').value;
   const granularity = parseInt(document.getElementById('granularity').value);
+  currentSymbol = symbol;
+  currentGranularity = granularity;
   
   if (subscriptionId) {
     ws.send(JSON.stringify({ forget: subscriptionId }));
     subscriptionId = null;
   }
 
-  // Solo limpiar velas si NO queremos preservarlas
   if (!preserveCandles) {
     candles = [];
     updateChart();
   } else {
-    log(`📊 Preservando ${candles.length} velas existentes (son del mercado)`, 'info');
+    log(`📊 Preservando ${candles.length} velas`, 'info');
   }
 
   log(`📡 Suscribiendo a ${symbol} (${granularity}s)...`, 'info');
@@ -757,15 +821,15 @@ function subscribeToCandles(preserveCandles = false) {
 function changeSymbol() {
   const symbol = document.getElementById('symbol').value;
   log(`🔄 Cambiando a ${symbol}...`, 'info');
-  subscribeToCandles(false); // Al cambiar de activo, sí limpiar velas
+  subscribeToCandles(false);
 }
 
 // ==========================================
-// BOT Y ANÁLISIS
+// BOT Y ANÁLISIS (CORREGIDO)
 // ==========================================
 function startBot() {
-  if (emergencyStopped) { log("No se puede iniciar tras parada de emergencia. Recarga la página.", 'error'); return; }
-  if (candles.length < 50) { log("⚠️ Esperando más datos de mercado (mínimo 50 velas)...", 'error'); return; }
+  if (emergencyStopped) { log("No se puede iniciar. Recarga la página.", 'error'); return; }
+  if (candles.length < 50) { log(`⚠️ Esperando datos (${candles.length}/50)...`, 'error'); return; }
   
   botRunning = true;
   document.getElementById('btnStart').disabled = true;
@@ -773,7 +837,7 @@ function startBot() {
   document.getElementById('statusBadge').textContent = 'Trading';
   document.getElementById('statusBadge').className = 'status-badge status-trading';
   
-  log("🤖 Bot iniciado. Analizando mercado cada 5 segundos...", 'success');
+  log("🤖 Bot iniciado. Analizando cada 5s...", 'success');
   analyzeMarket();
   analysisInterval = setInterval(analyzeMarket, 5000);
 }
@@ -785,12 +849,16 @@ function stopBot() {
   document.getElementById('btnStop').disabled = true;
   document.getElementById('statusBadge').textContent = 'Detenido';
   document.getElementById('statusBadge').className = 'status-badge status-disconnected';
-  showAlert("🛑 Bot detenido por el usuario");
+  showAlert("🛑 Bot detenido");
   log("🛑 Bot detenido manualmente", 'error');
 }
 
 function analyzeMarket() {
-  if (!botRunning || candles.length < 50) return;
+  if (!botRunning) return;
+  if (candles.length < 50) {
+    log(`⚠️ Esperando datos (${candles.length}/50)...`, 'info');
+    return;
+  }
 
   const strategy = document.getElementById('strategy').value;
   let eval;
@@ -800,7 +868,12 @@ function analyzeMarket() {
     document.getElementById('aiPrediction').textContent = prediction.direction || '---';
     document.getElementById('aiConfidence').textContent = prediction.confidence.toFixed(1) + '%';
     if (prediction.direction) {
-      eval = { score: prediction.confidence, reason: prediction.reason, direction: prediction.direction, duration: TA.calculateDuration(candles) };
+      eval = { 
+        score: prediction.confidence, 
+        reason: prediction.reason, 
+        direction: prediction.direction, 
+        duration: TA.calculateDuration(candles) 
+      };
     } else {
       eval = { score: 0, reason: prediction.reason, direction: null, duration: 5 };
     }
@@ -810,19 +883,24 @@ function analyzeMarket() {
   
   updateScore(eval.score, eval.reason);
 
+  // FIX: Log detallado para debug
+  if (eval.score >= 50) {
+    log(`📊 Score=${eval.score.toFixed(1)} | Dir=${eval.direction || 'N/A'} | ${eval.reason}`, 'info');
+  }
+
   if (eval.score >= 70 && eval.direction) {
     const riskCheck = RiskManager.canTrade();
     if (riskCheck.allowed) {
       const mode = document.getElementById('mode').value;
       const duration = eval.duration;
       if (mode === 'sim') {
-        log(`[SIMULACIÓN] Señal: ${eval.direction} | Score: ${eval.score} | Duración: ${duration}t`, 'signal');
-        addTradeToHistory('SIM', eval.direction, 0, `Score: ${eval.score}`);
+        log(`[SIM] Señal: ${eval.direction} | Score: ${eval.score.toFixed(1)} | Dur: ${duration}t`, 'signal');
+        addTradeToHistory('SIM', eval.direction, 0, `Score: ${eval.score.toFixed(0)}`);
       } else {
         executeTrade(eval.direction, duration);
       }
     } else {
-      log(`Señal ignorada: ${riskCheck.reason}`, 'info');
+      log(`⚠️ Señal ignorada: ${riskCheck.reason}`, 'info');
     }
   }
 }
@@ -831,7 +909,7 @@ function executeTrade(direction, duration) {
   const stake = riskState.currentStake;
   const symbol = document.getElementById('symbol').value;
   window.pendingTrade = { direction, duration, stake };
-  log(`Solicitando propuesta: ${direction} | $${stake.toFixed(2)} | ${duration}t`, 'trade');
+  log(`Solicitando: ${direction} | $${stake.toFixed(2)} | ${duration}t`, 'trade');
   ws.send(JSON.stringify({
     proposal: 1, amount: stake, basis: 'stake', contract_type: direction,
     currency: 'USD', duration: duration, duration_unit: 't', symbol: symbol
@@ -866,7 +944,7 @@ function updateChart() {
 
 function updateScore(score, reason) {
   const el = document.getElementById('oppScore');
-  el.textContent = score;
+  el.textContent = score.toFixed(1);
   el.className = 'score-val ' + (score >= 70 ? 'score-high' : score >= 40 ? 'score-med' : 'score-low');
   document.getElementById('oppReason').textContent = reason;
 }
@@ -908,10 +986,10 @@ function updateStrategyInfo() {
   const strategy = document.getElementById('strategy').value;
   const info = document.getElementById('strategyInfo');
   const descriptions = {
-    'A': '<strong>Tendencia:</strong> Opera a favor de EMA20>EMA50 con RSI confirmado (40-60)',
-    'B': '<strong>Reversión:</strong> Detecta precios en Bandas de Bollinger con RSI extremo (<30 o >70)',
-    'C': '<strong>Breakout:</strong> Identifica rupturas de máximos/mínimos de 20 velas',
-    'AI': '<strong>IA LSTM:</strong> Red neuronal que aprende patrones y predice movimientos futuros'
+    'A': '<strong>Tendencia:</strong> EMA20>EMA50 con RSI (40-60)',
+    'B': '<strong>Reversión:</strong> Bandas Bollinger + RSI extremo',
+    'C': '<strong>Breakout:</strong> Ruptura de máx/mín 20 velas',
+    'AI': '<strong>IA LSTM:</strong> Red neuronal predictiva'
   };
   info.innerHTML = descriptions[strategy];
 }
@@ -934,8 +1012,15 @@ window.onload = () => {
   initChart();
   connect();
   updateStrategyInfo();
-  log("🚀 Sistema iniciado con IA LSTM. Esperando cuentas...", 'info');
+  log("🚀 Sistema iniciado con IA LSTM.", 'info');
 };
+
+// FIX: Heartbeat para mantener Render despierto
+setInterval(() => {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'PING' }));
+  }
+}, 14 * 60 * 1000);
 </script>
 </body>
 </html>
