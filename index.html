@@ -328,7 +328,6 @@ const TA = {
     }
     return TA.ema(tr, period);
   },
-  // ✅ CORREGIDO: Devuelve { value, unit } para manejar ticks y minutos
   calculateDuration: (candles) => {
     if (candles.length < 50) return { value: 5, unit: 't' };
     const closes = candles.map(c => c.close);
@@ -336,13 +335,8 @@ const TA = {
     const lastATR = atr[atr.length - 1] || 0;
     const lastClose = closes[closes.length - 1];
     const volRatio = lastATR / lastClose;
-    
-    // ✅ API V1 limita ticks a 1-10
-    // Alta volatilidad: 5 ticks
     if (volRatio > 0.005) return { value: 5, unit: 't' };
-    // Media volatilidad: 10 ticks (máximo permitido)
     if (volRatio > 0.002) return { value: 10, unit: 't' };
-    // Baja volatilidad: 5 minutos (usar minutos en lugar de ticks)
     return { value: 5, unit: 'm' };
   }
 };
@@ -429,9 +423,17 @@ const AIEngine = {
     const durationObj = TA.calculateDuration(candles);
     return { score: Math.min(100, score), reason: reasons.join(', ') || 'Sin confluencia', direction, duration: durationObj.value, durationUnit: durationObj.unit, indicators: { ema20: lastEma20, ema50: lastEma50, rsi: lastRsi, bbUpper: lastBBUpper, bbLower: lastBBLower, price: lastClose } };
   },
+  // ✅ CORREGIDO: Ahora retorna duration y durationUnit
   predict: (candles) => {
     const result = AIEngine.evaluate(candles);
-    return { direction: result.direction, confidence: result.score, reason: `Ensemble: ${result.reason}`, indicators: result.indicators };
+    return { 
+      direction: result.direction, 
+      confidence: result.score, 
+      reason: `Ensemble: ${result.reason}`,
+      duration: result.duration,
+      durationUnit: result.durationUnit,
+      indicators: result.indicators 
+    };
   },
   createModel: () => null,
   prepareData: () => null,
@@ -791,7 +793,14 @@ function analyzeMarket() {
       const prediction = AIEngine.predict(candles);
       safeSetText('aiPrediction', prediction.direction || '---');
       safeSetText('aiConfidence', prediction.confidence.toFixed(1) + '%');
-      eval = { score: prediction.confidence, reason: prediction.reason, direction: prediction.direction, duration: prediction.duration, durationUnit: prediction.durationUnit, indicators: prediction.indicators };
+      eval = { 
+        score: prediction.confidence, 
+        reason: prediction.reason, 
+        direction: prediction.direction, 
+        duration: prediction.duration,
+        durationUnit: prediction.durationUnit,
+        indicators: prediction.indicators 
+      };
     } else {
       eval = StrategyEngine.evaluate(strategy, candles);
     }
@@ -839,7 +848,6 @@ function updateIndicatorSignal(elementId, signal) {
   }
 }
 
-// ✅ CORREGIDO: Maneja tanto ticks como minutos
 function executeTrade(direction, duration, durationUnit) {
   const stake = riskState.currentStake;
   const symbol = document.getElementById('symbol').value;
@@ -848,7 +856,6 @@ function executeTrade(direction, duration, durationUnit) {
   const durationLabel = durationUnit === 'm' ? `${duration}m` : `${duration}t`;
   log(`Solicitando: ${direction} | $${stake.toFixed(2)} | ${durationLabel}`, 'trade');
   
-  // ✅ API V1: ticks máximo 10, minutos sin límite
   const proposal = {
     proposal: 1,
     amount: stake,
