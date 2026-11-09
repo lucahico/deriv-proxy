@@ -37,12 +37,11 @@
   .log-container { height: 300px; overflow-y: auto; background: #010409; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 11px; }
   .log-entry { margin-bottom: 3px; padding-left: 5px; border-left: 2px solid var(--border); }
   .log-info { border-color: var(--blue); color: var(--blue); }
-  .log-success { border-color: var(--green); color: var(--green); }
+  .log-success { border-color: var(--green); color: var(--green); font-weight: bold; }
   .log-error { border-color: var(--red); color: var(--red); }
   .log-trade { border-color: var(--yellow); color: var(--yellow); }
   .log-signal { border-color: var(--purple); color: var(--purple); }
   .log-debug { border-color: #8b949e; color: #8b949e; }
-  .log-critical { border-color: #ff00ff; color: #ff00ff; font-weight: bold; background: #1a001a; padding: 2px 5px; }
   .status-badge { display: inline-block; padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: bold; }
   .status-connected { background: #1a4d2e; color: var(--green); }
   .status-disconnected { background: #4d1a1a; color: var(--red); }
@@ -163,7 +162,7 @@
 
     <div>
       <div class="card">
-        <h3>📈 Gráfico - <span id="chartSymbol">R_75</span> (<span id="candleCount">0</span> velas)</h3>
+        <h3>📈 Gráfico - <span id="chartSymbol">R_75</span> (<span id="candleCount" style="color:var(--yellow)">0</span> velas)</h3>
         <div class="score-display">
           <div style="font-size: 11px; color: #8b949e;">SCORE</div>
           <div class="score-val score-low" id="oppScore">0</div>
@@ -442,81 +441,6 @@ const RiskManager = {
 };
 
 // ==========================================
-// CARGAR HISTÓRICO REST (SE EJECUTA INMEDIATAMENTE)
-// ==========================================
-async function loadHistoryREST() {
-  const symbol = document.getElementById('symbol').value;
-  const granularity = parseInt(document.getElementById('granularity').value);
-  
-  log(`📡 [REST] Iniciando carga de ${symbol} (${granularity}s)...`, 'critical');
-  
-  try {
-    log(`📡 [REST] Conectando a api.derivws.com...`, 'critical');
-    
-    const response = await fetch(`https://ws.derivws.com/websockets/v3?app_id=1089`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ticks_history: symbol,
-        adjust_start_time: 1,
-        count: 100,
-        end: 'latest',
-        style: 'candles',
-        granularity: granularity,
-        subscribe: 0
-      })
-    });
-    
-    log(`📡 [REST] Respuesta HTTP: ${response.status}`, 'critical');
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      log(`❌ [REST] HTTP ${response.status}: ${errorText}`, 'critical');
-      return false;
-    }
-    
-    const data = await response.json();
-    log(`📡 [REST] JSON recibido. Keys: ${Object.keys(data).join(', ')}`, 'critical');
-    
-    if (data.error) {
-      log(`❌ [REST] Error API: ${data.error.message}`, 'critical');
-      return false;
-    }
-    
-    if (data.history && data.history.prices) {
-      const newCandles = data.history.prices.map((p, i) => ({
-        time: data.history.times[i],
-        open: parseFloat(p), high: parseFloat(p), low: parseFloat(p), close: parseFloat(p)
-      }));
-      
-      candles = newCandles;
-      if (candles.length > 100) candles = candles.slice(-100);
-      
-      updateChart();
-      document.getElementById('candleCount').textContent = candles.length;
-      
-      log(`✅ [REST] CARGADO: ${candles.length} velas`, 'critical');
-      log(`📊 [REST] Primera: ${new Date(candles[0].time * 1000).toLocaleString()}`, 'critical');
-      log(`📊 [REST] Última: ${new Date(candles[candles.length-1].time * 1000).toLocaleString()}`, 'critical');
-      
-      if (candles.length >= 51 && aiState.trainingCount < 3) {
-        setTimeout(() => AIEngine.train(candles), 100);
-      }
-      
-      if (botRunning) analyzeMarket();
-      return true;
-    } else {
-      log(`❌ [REST] Sin datos. Respuesta: ${JSON.stringify(data).substring(0, 200)}`, 'critical');
-      return false;
-    }
-  } catch (err) {
-    log(`❌ [REST] Excepción: ${err.message}`, 'critical');
-    log(`❌ [REST] Stack: ${err.stack}`, 'critical');
-    return false;
-  }
-}
-
-// ==========================================
 // CONEXIÓN
 // ==========================================
 function connect() {
@@ -547,7 +471,6 @@ function connect() {
       }
     }, 15000);
     
-    // Mantener vivo cada 10 segundos
     if (keepAliveInterval) clearInterval(keepAliveInterval);
     keepAliveInterval = setInterval(() => {
       if (ws && ws.readyState === WebSocket.OPEN && currentAccountId) {
@@ -566,7 +489,10 @@ function connect() {
       const data = JSON.parse(e.data);
       
       if (data.msg_type) {
-        log(`📨 ${data.msg_type}`, 'debug');
+        // No loguear ohlc para no saturar, solo mensajes importantes
+        if (data.msg_type !== 'ohlc' && data.msg_type !== 'tick') {
+          log(`📨 ${data.msg_type}`, 'debug');
+        }
       } else if (data.type) {
         log(`📨 type:${data.type}`, 'debug');
       }
@@ -600,7 +526,7 @@ function connect() {
         }
       }, delay);
     } else {
-      log("❌ Máximo intentos. Recarga.", 'critical');
+      log("❌ Máximo intentos. Recarga.", 'error');
       showAlert("❌ Sin conexión. Recarga.");
     }
   };
@@ -657,23 +583,24 @@ function handleMessage(data) {
     return;
   }
 
-  if (data.msg_type === 'candles' || data.msg_type === 'history') {
-    const candlesData = data.candles || data.history;
-    if (candlesData && candlesData.prices) {
-      const newCandles = candlesData.prices.map((p, i) => ({
-        time: candlesData.times[i],
-        open: parseFloat(p), high: parseFloat(p), low: parseFloat(p), close: parseFloat(p)
-      }));
-      log(`📊 Histórico WS: ${newCandles.length} velas`, 'success');
+  // ✅ CORRECCIÓN CLAVE: Deriv envía 'candles' como un ARRAY de objetos, NO como {prices, times}
+  if (data.msg_type === 'candles') {
+    if (Array.isArray(data.candles)) {
+      log(`📊 Histórico WS recibido: ${data.candles.length} velas`, 'success');
       
-      const existingTimes = new Set(candles.map(c => c.time));
-      newCandles.forEach(c => { if (!existingTimes.has(c.time)) candles.push(c); });
-      candles.sort((a, b) => a.time - b.time);
+      candles = data.candles.map(c => ({
+        time: c.epoch,
+        open: parseFloat(c.open),
+        high: parseFloat(c.high),
+        low: parseFloat(c.low),
+        close: parseFloat(c.close)
+      }));
+      
       if (candles.length > 100) candles = candles.slice(-100);
       
       updateChart();
       document.getElementById('candleCount').textContent = candles.length;
-      log(`📊 Total: ${candles.length} velas`, 'info');
+      log(`✅ Total velas en gráfico: ${candles.length}`, 'success');
       
       if (candles.length >= 51 && aiState.trainingCount < 3) {
         setTimeout(() => AIEngine.train(candles), 100);
@@ -688,27 +615,33 @@ function handleMessage(data) {
     const candleTime = parseInt(ohlc.open_time);
     const candle = {
       time: candleTime,
-      open: parseFloat(ohlc.open), high: parseFloat(ohlc.high),
-      low: parseFloat(ohlc.low), close: parseFloat(ohlc.close)
+      open: parseFloat(ohlc.open),
+      high: parseFloat(ohlc.high),
+      low: parseFloat(ohlc.low),
+      close: parseFloat(ohlc.close)
     };
     
     const lastCandle = candles[candles.length - 1];
     if (lastCandle && lastCandle.time === candleTime) {
+      // Actualizar vela en formación
       candles[candles.length - 1] = candle;
+      updateChart();
     } else {
+      // Nueva vela cerrada
       const isDuplicate = candles.some(c => c.time === candleTime);
       if (!isDuplicate) {
         candles.push(candle);
         if (candles.length > 100) candles = candles.slice(-100);
         document.getElementById('candleCount').textContent = candles.length;
-        log(`🕯️ Nueva vela. Total: ${candles.length}`, 'info');
+        log(`🕯️ Nueva vela cerrada. Total: ${candles.length}`, 'info');
+        
         if (candles.length % 10 === 0 && candles.length >= 51) {
           setTimeout(() => AIEngine.train(candles), 100);
         }
         if (botRunning) analyzeMarket();
+        updateChart();
       }
     }
-    updateChart();
     return;
   }
 
@@ -945,24 +878,11 @@ function log(msg, type = 'info') {
 }
 
 // ==========================================
-// INICIALIZACIÓN - CARGA REST INMEDIATA
+// INICIALIZACIÓN
 // ==========================================
-window.onload = async () => {
+window.onload = () => {
   log("🚀 Sistema iniciado", 'info');
   initChart();
-  
-  // CARGAR HISTÓRICO INMEDIATAMENTE (antes de conectar WebSocket)
-  log("⏳ Cargando histórico REST inmediatamente...", 'critical');
-  const restOk = await loadHistoryREST();
-  
-  if (restOk) {
-    log("✅ Histórico REST cargado exitosamente", 'critical');
-  } else {
-    log("⚠️ REST falló, intentando de nuevo en 3s...", 'critical');
-    setTimeout(() => loadHistoryREST(), 3000);
-  }
-  
-  // Conectar WebSocket después
   connect();
 };
 
