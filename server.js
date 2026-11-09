@@ -9,7 +9,6 @@ const wss = new WebSocket.Server({ port: PORT });
 
 console.log(`🚀 [SERVER] Proxy Deriv iniciado en puerto ${PORT}`);
 
-// Obtener todas las cuentas
 async function getAllAccounts() {
   try {
     const res = await fetch(`${API_BASE}/trading/v1/options/accounts`, {
@@ -25,7 +24,6 @@ async function getAllAccounts() {
     }
     
     const data = await res.json();
-    console.log(`📋 [SERVER] Cuentas recibidas: ${data.data?.length || 0}`);
     return data.data || [];
   } catch (error) {
     console.error('❌ Error obteniendo cuentas:', error.message);
@@ -33,7 +31,6 @@ async function getAllAccounts() {
   }
 }
 
-// Obtener URL privada para una cuenta específica
 async function getPrivateUrl(accountId) {
   try {
     const res = await fetch(`${API_BASE}/trading/v1/options/accounts/${accountId}/otp`, {
@@ -62,12 +59,11 @@ wss.on('connection', async (ws) => {
   console.log('✅ [SERVER] Cliente conectado al proxy');
   let derivWs = null;
   let currentAccountId = null;
+  let heartbeatInterval = null;
 
   try {
-    // 1. Obtener TODAS las cuentas
     const accounts = await getAllAccounts();
     
-    // Enviar lista de cuentas al frontend
     ws.send(JSON.stringify({ 
       type: 'ACCOUNTS_LIST', 
       accounts: accounts.map(a => ({
@@ -79,25 +75,31 @@ wss.on('connection', async (ws) => {
       }))
     }));
 
-    console.log(`📤 [SERVER] Lista de cuentas enviada al frontend`);
+    // Heartbeat para mantener la conexión viva
+    heartbeatInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'PING' }));
+      }
+    }, 30000); // Cada 30 segundos
 
-    // 2. Manejar mensajes del cliente
     ws.on('message', async (msg) => {
       try {
         const data = JSON.parse(msg.toString());
 
-        // Si el cliente selecciona una cuenta
+        // Ignorar pings del cliente
+        if (data.type === 'PING' || data.type === 'PONG') {
+          return;
+        }
+
         if (data.type === 'SELECT_ACCOUNT') {
           const accountId = data.account_id;
           console.log(`🎯 [SERVER] Cliente seleccionó cuenta: ${accountId}`);
           currentAccountId = accountId;
 
-          // Cerrar conexión anterior si existe
           if (derivWs && derivWs.readyState === WebSocket.OPEN) {
             derivWs.close();
           }
 
-          // Obtener URL privada
           const privateUrl = await getPrivateUrl(accountId);
           if (!privateUrl) {
             ws.send(JSON.stringify({ 
@@ -109,7 +111,6 @@ wss.on('connection', async (ws) => {
 
           console.log(`🔗 [SERVER] Conectando a Deriv para cuenta ${accountId}`);
 
-          // Conectar a Deriv con la URL privada
           derivWs = new WebSocket(privateUrl, {
             headers: { 'Deriv-App-ID': DERIV_APP_ID }
           });
@@ -123,7 +124,6 @@ wss.on('connection', async (ws) => {
           });
 
           derivWs.on('message', (data) => {
-            // Reenviar todos los mensajes de Deriv al cliente
             ws.send(data.toString());
           });
 
@@ -140,11 +140,9 @@ wss.on('connection', async (ws) => {
             }));
           });
         }
-        // Reenviar cualquier otro mensaje a Deriv (si está conectado)
         else if (derivWs && derivWs.readyState === WebSocket.OPEN) {
           derivWs.send(msg.toString());
         }
-        // Si no hay conexión con Deriv, informar al cliente
         else {
           ws.send(JSON.stringify({ 
             type: 'ERROR', 
@@ -158,6 +156,7 @@ wss.on('connection', async (ws) => {
 
     ws.on('close', () => {
       console.log('⚪ [SERVER] Cliente desconectado');
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
       if (derivWs && derivWs.readyState === WebSocket.OPEN) {
         derivWs.close();
       }
