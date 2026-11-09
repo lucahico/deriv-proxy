@@ -212,114 +212,42 @@
       <div class="card">
         <h3>🔍 Panel de Diagnóstico</h3>
         <div class="diagnostic-grid">
-          <div class="diag-item">
-            <div class="diag-label">WebSocket</div>
-            <div class="diag-value" id="diagWS">Desconectado</div>
-          </div>
-          <div class="diag-item">
-            <div class="diag-label">Velas</div>
-            <div class="diag-value" id="diagCandles">0</div>
-          </div>
-          <div class="diag-item">
-            <div class="diag-label">IA/Ensemble</div>
-            <div class="diag-value" id="diagAI">Inactivo</div>
-          </div>
-          <div class="diag-item">
-            <div class="diag-label">Bot</div>
-            <div class="diag-value" id="diagBot">Detenido</div>
-          </div>
-          <div class="diag-item">
-            <div class="diag-label">Último Score</div>
-            <div class="diag-value" id="diagScore">0</div>
-          </div>
-          <div class="diag-item">
-            <div class="diag-label">Dirección</div>
-            <div class="diag-value" id="diagDirection">---</div>
-          </div>
-          <div class="diag-item">
-            <div class="diag-label">Umbral</div>
-            <div class="diag-value" id="diagThreshold">50</div>
-          </div>
-          <div class="diag-item">
-            <div class="diag-label">Análisis</div>
-            <div class="diag-value" id="diagAnalyses">0</div>
-          </div>
-          <div class="diag-item">
-            <div class="diag-label">Señales</div>
-            <div class="diag-value" id="diagSignals">0</div>
-          </div>
-          <div class="diag-item">
-            <div class="diag-label">Operaciones</div>
-            <div class="diag-value" id="diagTrades">0</div>
-          </div>
-          <div class="diag-item">
-            <div class="diag-label">Último Análisis</div>
-            <div class="diag-value" id="diagLastAnalysis">---</div>
-          </div>
-          <div class="diag-item">
-            <div class="diag-label">Modo</div>
-            <div class="diag-value" id="diagMode">Simulación</div>
-          </div>
+          <div class="diag-item"><div class="diag-label">WebSocket</div><div class="diag-value" id="diagWS">Desconectado</div></div>
+          <div class="diag-item"><div class="diag-label">Velas</div><div class="diag-value" id="diagCandles">0</div></div>
+          <div class="diag-item"><div class="diag-label">IA/Ensemble</div><div class="diag-value" id="diagAI">Inactivo</div></div>
+          <div class="diag-item"><div class="diag-label">Bot</div><div class="diag-value" id="diagBot">Detenido</div></div>
+          <div class="diag-item"><div class="diag-label">Último Score</div><div class="diag-value" id="diagScore">0</div></div>
+          <div class="diag-item"><div class="diag-label">Dirección</div><div class="diag-value" id="diagDirection">---</div></div>
+          <div class="diag-item"><div class="diag-label">Umbral</div><div class="diag-value" id="diagThreshold">50</div></div>
+          <div class="diag-item"><div class="diag-label">Análisis</div><div class="diag-value" id="diagAnalyses">0</div></div>
+          <div class="diag-item"><div class="diag-label">Señales</div><div class="diag-value" id="diagSignals">0</div></div>
+          <div class="diag-item"><div class="diag-label">Operaciones</div><div class="diag-value" id="diagTrades">0</div></div>
+          <div class="diag-item"><div class="diag-label">Último Análisis</div><div class="diag-value" id="diagLastAnalysis">---</div></div>
+          <div class="diag-item"><div class="diag-label">Modo</div><div class="diag-value" id="diagMode">Simulación</div></div>
         </div>
       </div>
 
       <div class="card">
         <h3>📊 Indicadores en Vivo</h3>
         <div id="indicatorsPanel">
-          <div class="indicator-bar">
-            <span class="indicator-name">EMA 20</span>
-            <span class="indicator-value" id="indEMA20">---</span>
-            <span class="indicator-signal signal-neutral" id="indEMA20Signal">---</span>
-          </div>
-          <div class="indicator-bar">
-            <span class="indicator-name">EMA 50</span>
-            <span class="indicator-value" id="indEMA50">---</span>
-            <span class="indicator-signal signal-neutral" id="indEMA50Signal">---</span>
-          </div>
-          <div class="indicator-bar">
-            <span class="indicator-name">RSI (14)</span>
-            <span class="indicator-value" id="indRSI">---</span>
-            <span class="indicator-signal signal-neutral" id="indRSISignal">---</span>
-          </div>
-          <div class="indicator-bar">
-            <span class="indicator-name">Bollinger Sup</span>
-            <span class="indicator-value" id="indBBUpper">---</span>
-            <span class="indicator-signal signal-neutral" id="indBBUpperSignal">---</span>
-          </div>
-          <div class="indicator-bar">
-            <span class="indicator-name">Bollinger Inf</span>
-            <span class="indicator-value" id="indBBLower">---</span>
-            <span class="indicator-signal signal-neutral" id="indBBLowerSignal">---</span>
-          </div>
-          <div class="indicator-bar">
-            <span class="indicator-name">Precio Actual</span>
-            <span class="indicator-value" id="indPrice">---</span>
-            <span class="indicator-signal signal-neutral" id="indPriceSignal">---</span>
-          </div>
+          <div class="indicator-bar"><span class="indicator-name">EMA 20</span><span class="indicator-value" id="indEMA20">---</span><span class="indicator-signal signal-neutral" id="indEMA20Signal">---</span></div>
+          <div class="indicator-bar"><span class="indicator-name">EMA 50</span><span class="indicator-value" id="indEMA50">---</span><span class="indicator-signal signal-neutral" id="indEMA50Signal">---</span></div>
+          <div class="indicator-bar"><span class="indicator-name">RSI (14)</span><span class="indicator-value" id="indRSI">---</span><span class="indicator-signal signal-neutral" id="indRSISignal">---</span></div>
+          <div class="indicator-bar"><span class="indicator-name">Bollinger Sup</span><span class="indicator-value" id="indBBUpper">---</span><span class="indicator-signal signal-neutral" id="indBBUpperSignal">---</span></div>
+          <div class="indicator-bar"><span class="indicator-name">Bollinger Inf</span><span class="indicator-value" id="indBBLower">---</span><span class="indicator-signal signal-neutral" id="indBBLowerSignal">---</span></div>
+          <div class="indicator-bar"><span class="indicator-name">Precio Actual</span><span class="indicator-value" id="indPrice">---</span><span class="indicator-signal signal-neutral" id="indPriceSignal">---</span></div>
         </div>
       </div>
 
       <div class="card">
         <h3>✅ Estado de Módulos</h3>
         <div id="modulesStatus" style="font-size: 11px;">
-          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;">
-            <span id="modConnection">⚪</span> Conexión WebSocket
-          </div>
-          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;">
-            <span id="modData">⚪</span> Recepción de datos
-          </div>
-          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;">
-            <span id="modAnalysis">⚪</span> Análisis técnico
-          </div>
-          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;">
-            <span id="modEnsemble">⚪</span> Motor Ensemble IA
-          </div>
-          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;">
-            <span id="modRisk">⚪</span> Gestión de riesgo
-          </div>
-          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;">
-            <span id="modExecution">⚪</span> Ejecución de trades
-          </div>
+          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;"><span id="modConnection">⚪</span> Conexión WebSocket</div>
+          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;"><span id="modData">⚪</span> Recepción de datos</div>
+          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;"><span id="modAnalysis">⚪</span> Análisis técnico</div>
+          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;"><span id="modEnsemble">⚪</span> Motor Ensemble IA</div>
+          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;"><span id="modRisk">⚪</span> Gestión de riesgo</div>
+          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;"><span id="modExecution">⚪</span> Ejecución de trades</div>
         </div>
       </div>
     </div>
@@ -350,6 +278,17 @@ let riskState = {
   isPaused: false, pauseEndTime: 0,
   maxDailyLossPct: 0.05, maxDailyTrades: 20, maxLossStreak: 3
 };
+
+// Helper seguro para actualizar elementos DOM
+function safeSetText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+function safeSetClass(id, className) {
+  const el = document.getElementById(id);
+  if (el) el.className = className;
+}
 
 // ==========================================
 // ANÁLISIS TÉCNICO
@@ -533,10 +472,11 @@ const AIEngine = {
   createModel: () => null,
   prepareData: () => null,
   train: async () => { 
-    document.getElementById('aiModelStatus').textContent = 'Ensemble Activo';
-    document.getElementById('diagAI').textContent = 'Activo';
-    document.getElementById('diagAI').className = 'diag-value';
-    log('✅ Ensemble IA activo (sin entrenamiento necesario)', 'diagnostic');
+    // ✅ CORRECCIÓN: Verificar existencia de elementos antes de modificarlos
+    safeSetText('aiPrediction', 'Activo');
+    safeSetText('diagAI', 'Activo');
+    safeSetClass('diagAI', 'diag-value');
+    log('✅ Ensemble IA activo', 'diagnostic');
     updateModuleStatus('modEnsemble', true);
   }
 };
@@ -596,19 +536,19 @@ function connect() {
   reconnectAttempts++;
   
   log(`Conectando... (${reconnectAttempts}/${maxReconnectAttempts})`, 'info');
-  document.getElementById('statusBadge').textContent = 'Conectando...';
-  document.getElementById('statusBadge').className = 'status-badge status-disconnected';
+  safeSetText('statusBadge', 'Conectando...');
+  safeSetClass('statusBadge', 'status-badge status-disconnected');
   updateModuleStatus('modConnection', false);
   
   ws = new WebSocket(SERVER_URL);
 
   ws.onopen = () => {
     log("✅ Conectado al servidor", 'success');
-    document.getElementById('statusBadge').textContent = 'Conectado';
-    document.getElementById('statusBadge').className = 'status-badge status-connected';
-    document.getElementById('connectionInfo').textContent = 'Online';
-    document.getElementById('diagWS').textContent = 'Conectado';
-    document.getElementById('diagWS').className = 'diag-value';
+    safeSetText('statusBadge', 'Conectado');
+    safeSetClass('statusBadge', 'status-badge status-connected');
+    safeSetText('connectionInfo', 'Online');
+    safeSetText('diagWS', 'Conectado');
+    safeSetClass('diagWS', 'diag-value');
     updateModuleStatus('modConnection', true);
     reconnectAttempts = 0;
     isReconnecting = false;
@@ -649,11 +589,11 @@ function connect() {
 
   ws.onclose = (event) => {
     log(`🔌 Cerrado (code:${event.code})`, 'error');
-    document.getElementById('statusBadge').textContent = 'Desconectado';
-    document.getElementById('statusBadge').className = 'status-badge status-disconnected';
-    document.getElementById('connectionInfo').textContent = 'Offline';
-    document.getElementById('diagWS').textContent = 'Desconectado';
-    document.getElementById('diagWS').className = 'diag-value error';
+    safeSetText('statusBadge', 'Desconectado');
+    safeSetClass('statusBadge', 'status-badge status-disconnected');
+    safeSetText('connectionInfo', 'Offline');
+    safeSetText('diagWS', 'Desconectado');
+    safeSetClass('diagWS', 'diag-value error');
     updateModuleStatus('modConnection', false);
     isReconnecting = false;
     if (heartbeatInterval) clearInterval(heartbeatInterval);
@@ -691,9 +631,9 @@ function handleMessage(data) {
 
   if (data.type === 'CONNECTED') {
     log(`✅ Cuenta: ${data.account_id}`, 'success');
-    document.getElementById('statusBadge').textContent = 'Conectado';
-    document.getElementById('statusBadge').className = 'status-badge status-connected';
-    document.getElementById('connectionInfo').textContent = `Cuenta: ${data.account_id}`;
+    safeSetText('statusBadge', 'Conectado');
+    safeSetClass('statusBadge', 'status-badge status-connected');
+    safeSetText('connectionInfo', `Cuenta: ${data.account_id}`);
     currentAccountId = data.account_id;
     
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -719,10 +659,10 @@ function handleMessage(data) {
     
     if (accountsData.demo && accountsData.demo.id === accId) {
       accountsData.demo.balance = balance;
-      document.getElementById('demoBalance').textContent = balance.toFixed(2) + ' ' + currency;
+      safeSetText('demoBalance', balance.toFixed(2) + ' ' + currency);
     } else if (accountsData.real && accountsData.real.id === accId) {
       accountsData.real.balance = balance;
-      document.getElementById('realBalance').textContent = balance.toFixed(2) + ' ' + currency;
+      safeSetText('realBalance', balance.toFixed(2) + ' ' + currency);
     }
     
     if (accId === currentAccountId) RiskManager.init(balance);
@@ -738,8 +678,8 @@ function handleMessage(data) {
       }));
       if (candles.length > 100) candles = candles.slice(-100);
       updateChart();
-      document.getElementById('candleCount').textContent = candles.length;
-      document.getElementById('diagCandles').textContent = candles.length;
+      safeSetText('candleCount', candles.length);
+      safeSetText('diagCandles', candles.length);
       log(`✅ Total: ${candles.length} velas`, 'success');
       updateModuleStatus('modData', true);
       
@@ -767,8 +707,8 @@ function handleMessage(data) {
       if (!isDuplicate) {
         candles.push(candle);
         if (candles.length > 100) candles = candles.slice(-100);
-        document.getElementById('candleCount').textContent = candles.length;
-        document.getElementById('diagCandles').textContent = candles.length;
+        safeSetText('candleCount', candles.length);
+        safeSetText('diagCandles', candles.length);
         log(`🕯️ Nueva vela. Total: ${candles.length}`, 'info');
         updateModuleStatus('modData', true);
         
@@ -816,12 +756,12 @@ function processAccounts(accounts) {
   accounts.forEach(acc => {
     if (acc.type === 'demo') {
       accountsData.demo = acc;
-      document.getElementById('demoId').textContent = acc.id;
-      document.getElementById('demoBalance').textContent = parseFloat(acc.balance).toFixed(2) + ' ' + acc.currency;
+      safeSetText('demoId', acc.id);
+      safeSetText('demoBalance', parseFloat(acc.balance).toFixed(2) + ' ' + acc.currency);
     } else if (acc.type === 'real') {
       accountsData.real = acc;
-      document.getElementById('realId').textContent = acc.id;
-      document.getElementById('realBalance').textContent = parseFloat(acc.balance).toFixed(2) + ' ' + acc.currency;
+      safeSetText('realId', acc.id);
+      safeSetText('realBalance', parseFloat(acc.balance).toFixed(2) + ' ' + acc.currency);
     }
   });
   if (!userSelectedAccount) {
@@ -847,8 +787,8 @@ function changeSymbol() {
   log(`🔄 Cambiando a ${symbol} (${granularity}s)...`, 'info');
   candles = [];
   updateChart();
-  document.getElementById('candleCount').textContent = '0';
-  document.getElementById('chartSymbol').textContent = `${symbol} (${granularity}s)`;
+  safeSetText('candleCount', '0');
+  safeSetText('chartSymbol', `${symbol} (${granularity}s)`);
   subscribeToCandles(false);
 }
 
@@ -869,7 +809,7 @@ function subscribeToCandles(preserveCandles = false) {
   if (!preserveCandles) {
     candles = [];
     updateChart();
-    document.getElementById('candleCount').textContent = '0';
+    safeSetText('candleCount', '0');
   }
 
   log(`📡 Solicitando: ${symbol} (${granularity}s)`, 'info');
@@ -892,10 +832,10 @@ function startBot() {
   
   document.getElementById('btnStart').disabled = true;
   document.getElementById('btnStop').disabled = false;
-  document.getElementById('statusBadge').textContent = 'Trading';
-  document.getElementById('statusBadge').className = 'status-badge status-trading';
-  document.getElementById('diagBot').textContent = 'Activo';
-  document.getElementById('diagBot').className = 'diag-value';
+  safeSetText('statusBadge', 'Trading');
+  safeSetClass('statusBadge', 'status-badge status-trading');
+  safeSetText('diagBot', 'Activo');
+  safeSetClass('diagBot', 'diag-value');
   log(`🤖 Bot iniciado (umbral: ${currentThreshold})`, 'success');
   updateModuleStatus('modAnalysis', true);
   
@@ -930,10 +870,10 @@ function stopBot() {
   if (analysisInterval) { clearInterval(analysisInterval); analysisInterval = null; }
   if (visibilityCheckInterval) { clearInterval(visibilityCheckInterval); visibilityCheckInterval = null; }
   document.getElementById('btnStop').disabled = true;
-  document.getElementById('statusBadge').textContent = 'Detenido';
-  document.getElementById('statusBadge').className = 'status-badge status-disconnected';
-  document.getElementById('diagBot').textContent = 'Detenido';
-  document.getElementById('diagBot').className = 'diag-value warning';
+  safeSetText('statusBadge', 'Detenido');
+  safeSetClass('statusBadge', 'status-badge status-disconnected');
+  safeSetText('diagBot', 'Detenido');
+  safeSetClass('diagBot', 'diag-value warning');
   showAlert("🛑 Bot detenido");
   log("🛑 Detenido", 'error');
 }
@@ -945,75 +885,78 @@ function analyzeMarket() {
     return;
   }
 
-  totalAnalyses++;
-  document.getElementById('diagAnalyses').textContent = totalAnalyses;
-  document.getElementById('diagLastAnalysis').textContent = new Date().toLocaleTimeString();
-  
-  const strategy = document.getElementById('strategy').value;
-  let eval;
-  
-  if (strategy === 'AI') {
-    const prediction = AIEngine.predict(candles);
-    document.getElementById('aiPrediction').textContent = prediction.direction || '---';
-    document.getElementById('aiConfidence').textContent = prediction.confidence.toFixed(1) + '%';
-    eval = {
-      score: prediction.confidence,
-      reason: prediction.reason,
-      direction: prediction.direction,
-      duration: TA.calculateDuration(candles),
-      indicators: prediction.indicators
-    };
-  } else {
-    eval = StrategyEngine.evaluate(strategy, candles);
-  }
-  
-  updateScore(eval.score, eval.reason);
-  document.getElementById('diagScore').textContent = eval.score.toFixed(1);
-  document.getElementById('diagDirection').textContent = eval.direction || '---';
-  
-  if (eval.indicators) {
-    document.getElementById('indEMA20').textContent = eval.indicators.ema20.toFixed(2);
-    document.getElementById('indEMA50').textContent = eval.indicators.ema50.toFixed(2);
-    document.getElementById('indRSI').textContent = eval.indicators.rsi.toFixed(1);
-    document.getElementById('indBBUpper').textContent = eval.indicators.bbUpper.toFixed(2);
-    document.getElementById('indBBLower').textContent = eval.indicators.bbLower.toFixed(2);
-    document.getElementById('indPrice').textContent = eval.indicators.price.toFixed(2);
+  try {
+    totalAnalyses++;
+    safeSetText('diagAnalyses', totalAnalyses);
+    safeSetText('diagLastAnalysis', new Date().toLocaleTimeString());
     
-    updateIndicatorSignal('indEMA20Signal', eval.indicators.ema20 > eval.indicators.ema50 ? 'buy' : 'sell');
-    updateIndicatorSignal('indRSISignal', eval.indicators.rsi < 30 ? 'buy' : eval.indicators.rsi > 70 ? 'sell' : 'neutral');
-    updateIndicatorSignal('indPriceSignal', eval.direction === 'CALL' ? 'buy' : eval.direction === 'PUT' ? 'sell' : 'neutral');
-  }
-  
-  const tabIndicator = isTabVisible ? '' : ' [BG]';
-  log(`📊 Análisis${tabIndicator}: Score=${eval.score.toFixed(1)} | ${eval.direction || 'N/A'} | ${eval.reason}`, 'debug');
-
-  if (eval.score >= currentThreshold && eval.direction) {
-    totalSignals++;
-    document.getElementById('diagSignals').textContent = totalSignals;
-    const riskCheck = RiskManager.canTrade();
-    if (riskCheck.allowed) {
-      const mode = document.getElementById('mode').value;
-      if (mode === 'sim') {
-        log(`🎯 [SIMULACIÓN] Señal: ${eval.direction} | Score: ${eval.score.toFixed(1)}`, 'signal');
-        addTradeToHistory('SIM', eval.direction, 0, `Score: ${eval.score.toFixed(0)}`);
-      } else {
-        executeTrade(eval.direction, eval.duration);
-      }
+    const strategy = document.getElementById('strategy').value;
+    let eval;
+    
+    if (strategy === 'AI') {
+      const prediction = AIEngine.predict(candles);
+      safeSetText('aiPrediction', prediction.direction || '---');
+      safeSetText('aiConfidence', prediction.confidence.toFixed(1) + '%');
+      eval = {
+        score: prediction.confidence,
+        reason: prediction.reason,
+        direction: prediction.direction,
+        duration: TA.calculateDuration(candles),
+        indicators: prediction.indicators
+      };
     } else {
-      log(`⚠️ Señal ignorada: ${riskCheck.reason}`, 'info');
+      eval = StrategyEngine.evaluate(strategy, candles);
     }
+    
+    updateScore(eval.score, eval.reason);
+    safeSetText('diagScore', eval.score.toFixed(1));
+    safeSetText('diagDirection', eval.direction || '---');
+    
+    if (eval.indicators) {
+      safeSetText('indEMA20', eval.indicators.ema20.toFixed(2));
+      safeSetText('indEMA50', eval.indicators.ema50.toFixed(2));
+      safeSetText('indRSI', eval.indicators.rsi.toFixed(1));
+      safeSetText('indBBUpper', eval.indicators.bbUpper.toFixed(2));
+      safeSetText('indBBLower', eval.indicators.bbLower.toFixed(2));
+      safeSetText('indPrice', eval.indicators.price.toFixed(2));
+      
+      updateIndicatorSignal('indEMA20Signal', eval.indicators.ema20 > eval.indicators.ema50 ? 'buy' : 'sell');
+      updateIndicatorSignal('indRSISignal', eval.indicators.rsi < 30 ? 'buy' : eval.indicators.rsi > 70 ? 'sell' : 'neutral');
+      updateIndicatorSignal('indPriceSignal', eval.direction === 'CALL' ? 'buy' : eval.direction === 'PUT' ? 'sell' : 'neutral');
+    }
+    
+    const tabIndicator = isTabVisible ? '' : ' [BG]';
+    log(`📊 Análisis${tabIndicator}: Score=${eval.score.toFixed(1)} | ${eval.direction || 'N/A'} | ${eval.reason}`, 'debug');
+
+    if (eval.score >= currentThreshold && eval.direction) {
+      totalSignals++;
+      safeSetText('diagSignals', totalSignals);
+      const riskCheck = RiskManager.canTrade();
+      if (riskCheck.allowed) {
+        const mode = document.getElementById('mode').value;
+        if (mode === 'sim') {
+          log(`🎯 [SIMULACIÓN] Señal: ${eval.direction} | Score: ${eval.score.toFixed(1)}`, 'signal');
+          addTradeToHistory('SIM', eval.direction, 0, `Score: ${eval.score.toFixed(0)}`);
+        } else {
+          executeTrade(eval.direction, eval.duration);
+        }
+      } else {
+        log(`⚠️ Señal ignorada: ${riskCheck.reason}`, 'info');
+      }
+    }
+  } catch (err) {
+    log(`❌ Error en análisis: ${err.message}`, 'error');
   }
 }
 
 function updateIndicatorSignal(elementId, signal) {
   const el = document.getElementById(elementId);
-  el.className = 'indicator-signal signal-' + signal;
-  el.textContent = signal === 'buy' ? '▲' : signal === 'sell' ? '▼' : '—';
+  if (el) {
+    el.className = 'indicator-signal signal-' + signal;
+    el.textContent = signal === 'buy' ? '▲' : signal === 'sell' ? '▼' : '—';
+  }
 }
 
-// ==========================================
-// ✅ FUNCIÓN CORREGIDA: executeTrade
-// ==========================================
 function executeTrade(direction, duration) {
   const stake = riskState.currentStake;
   const symbol = document.getElementById('symbol').value;
@@ -1021,8 +964,6 @@ function executeTrade(direction, duration) {
   
   log(`Solicitando: ${direction} | $${stake.toFixed(2)} | ${duration}t`, 'trade');
   
-  // ✅ CORRECCIÓN: La API V1 de Deriv requiere 'underlying' en lugar de 'symbol'
-  // y 'product_type' para identificar el tipo de contrato
   const proposal = {
     proposal: 1,
     amount: stake,
@@ -1031,8 +972,8 @@ function executeTrade(direction, duration) {
     currency: 'USD',
     duration: duration,
     duration_unit: 't',
-    underlying: symbol,      // ← CAMBIO CLAVE
-    product_type: 'basic'    // ← Requerido por API V1
+    underlying: symbol,
+    product_type: 'basic'
   };
   
   log(`📤 Enviando propuesta (API V1): ${JSON.stringify(proposal)}`, 'debug');
@@ -1044,8 +985,8 @@ function executeTrade(direction, duration) {
 // ==========================================
 function updateThreshold(value) {
   currentThreshold = parseInt(value);
-  document.getElementById('thresholdValue').textContent = currentThreshold;
-  document.getElementById('diagThreshold').textContent = currentThreshold;
+  safeSetText('thresholdValue', currentThreshold);
+  safeSetText('diagThreshold', currentThreshold);
   log(`🎯 Umbral actualizado: ${currentThreshold}`, 'info');
 }
 
@@ -1081,21 +1022,25 @@ function updateChart() {
 
 function updateScore(score, reason) {
   const el = document.getElementById('oppScore');
-  el.textContent = score.toFixed(1);
-  el.className = 'score-val ' + (score >= currentThreshold ? 'score-high' : score >= 40 ? 'score-med' : 'score-low');
-  document.getElementById('oppReason').textContent = reason;
+  if (el) {
+    el.textContent = score.toFixed(1);
+    el.className = 'score-val ' + (score >= currentThreshold ? 'score-high' : score >= 40 ? 'score-med' : 'score-low');
+  }
+  safeSetText('oppReason', reason);
 }
 
 function updateStats() {
-  document.getElementById('currentBalance').textContent = riskState.currentBalance.toFixed(2);
+  safeSetText('currentBalance', riskState.currentBalance.toFixed(2));
   const pnlEl = document.getElementById('dailyPnl');
-  pnlEl.textContent = (riskState.dailyPnl >= 0 ? '+' : '') + riskState.dailyPnl.toFixed(2);
-  pnlEl.className = 'stat-value ' + (riskState.dailyPnl >= 0 ? '' : 'red');
-  document.getElementById('tradesCount').textContent = `${riskState.tradesToday}/${riskState.maxDailyTrades}`;
+  if (pnlEl) {
+    pnlEl.textContent = (riskState.dailyPnl >= 0 ? '+' : '') + riskState.dailyPnl.toFixed(2);
+    pnlEl.className = 'stat-value ' + (riskState.dailyPnl >= 0 ? '' : 'red');
+  }
+  safeSetText('tradesCount', `${riskState.tradesToday}/${riskState.maxDailyTrades}`);
   const winRate = riskState.tradesToday > 0 ? ((riskState.wins / riskState.tradesToday) * 100).toFixed(0) : 0;
-  document.getElementById('winRate').textContent = winRate + '%';
-  document.getElementById('lossStreak').textContent = riskState.lossStreak;
-  document.getElementById('nextStake').textContent = riskState.currentStake.toFixed(2);
+  safeSetText('winRate', winRate + '%');
+  safeSetText('lossStreak', riskState.lossStreak);
+  safeSetText('nextStake', riskState.currentStake.toFixed(2));
 }
 
 function addTradeToHistory(mode, direction, stake, status) {
@@ -1133,8 +1078,10 @@ document.addEventListener('visibilitychange', () => {
   
   if (isTabVisible) {
     log("👁️ Pestaña activa", 'info');
-    tabStatusEl.textContent = '🟢 Pestaña activa';
-    tabStatusEl.style.color = 'var(--green)';
+    if (tabStatusEl) {
+      tabStatusEl.textContent = '🟢 Pestaña activa';
+      tabStatusEl.style.color = 'var(--green)';
+    }
     updateChart();
     if (botRunning) {
       analyzeMarket();
@@ -1149,8 +1096,10 @@ document.addEventListener('visibilitychange', () => {
     }
   } else {
     log("💤 Segundo plano (bot activo)", 'debug');
-    tabStatusEl.textContent = '🟡 Segundo plano';
-    tabStatusEl.style.color = 'var(--yellow)';
+    if (tabStatusEl) {
+      tabStatusEl.textContent = '🟡 Segundo plano';
+      tabStatusEl.style.color = 'var(--yellow)';
+    }
   }
 });
 
