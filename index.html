@@ -5,13 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Deriv Pro Trader - Ensemble IA</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
 <style>
   :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --green: #2ea043; --red: #da3633; --blue: #58a6ff; --yellow: #d29922; --purple: #a371f7; }
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
   body { background: var(--bg); color: var(--text); padding: 15px; font-size: 13px; }
-  .container { max-width: 1600px; margin: 0 auto; }
-  .grid { display: grid; grid-template-columns: 300px 1fr 350px; gap: 15px; }
+  .container { max-width: 1800px; margin: 0 auto; }
+  .grid { display: grid; grid-template-columns: 280px 1fr 300px 280px; gap: 15px; }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; margin-bottom: 15px; }
   .card h3 { color: var(--blue); margin-bottom: 10px; font-size: 14px; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
   .account-selector { display: flex; gap: 10px; margin-bottom: 10px; }
@@ -26,7 +25,6 @@
   .btn { width: 100%; padding: 10px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 5px; }
   .btn-primary { background: var(--green); color: white; }
   .btn-danger { background: var(--red); color: white; }
-  .btn-warning { background: var(--yellow); color: #000; }
   .btn:disabled { background: var(--border); color: #8b949e; cursor: not-allowed; }
   .score-display { text-align: center; padding: 15px; border-radius: 6px; background: var(--bg); margin: 10px 0; }
   .score-val { font-size: 32px; font-weight: bold; }
@@ -34,9 +32,9 @@
   .score-med { color: var(--yellow); }
   .score-low { color: var(--red); }
   .score-reason { font-size: 11px; margin-top: 5px; color: #8b949e; }
-  .chart-container { position: relative; height: 400px; width: 100%; }
-  .log-container { height: 350px; overflow-y: auto; background: #010409; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 10px; }
-  .log-entry { margin-bottom: 2px; padding-left: 5px; border-left: 2px solid var(--border); }
+  .chart-container { position: relative; height: 350px; width: 100%; }
+  .log-container { height: 250px; overflow-y: auto; background: #010409; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 11px; }
+  .log-entry { margin-bottom: 3px; padding-left: 5px; border-left: 2px solid var(--border); }
   .log-info { border-color: var(--blue); color: var(--blue); }
   .log-success { border-color: var(--green); color: var(--green); font-weight: bold; }
   .log-error { border-color: var(--red); color: var(--red); }
@@ -44,7 +42,7 @@
   .log-signal { border-color: var(--purple); color: var(--purple); font-weight: bold; }
   .log-debug { border-color: #8b949e; color: #8b949e; }
   .log-warning { border-color: var(--yellow); color: var(--yellow); }
-  .log-system { border-color: #00ffff; color: #00ffff; }
+  .log-diagnostic { border-color: #00ffff; color: #00ffff; background: #001a1a; }
   .status-badge { display: inline-block; padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: bold; }
   .status-connected { background: #1a4d2e; color: var(--green); }
   .status-disconnected { background: #4d1a1a; color: var(--red); }
@@ -60,72 +58,25 @@
   .alert-banner { background: var(--yellow); color: #000; padding: 10px; border-radius: 6px; margin-bottom: 10px; font-weight: bold; display: none; }
   .strategy-info { background: var(--bg); padding: 10px; border-radius: 4px; margin-top: 10px; font-size: 11px; border-left: 3px solid var(--purple); }
   .connection-info { font-size: 10px; color: #8b949e; margin-top: 5px; text-align: center; }
-  .ai-status { background: var(--bg); padding: 10px; border-radius: 4px; margin-top: 10px; border-left: 3px solid #00ffff; font-size: 11px; }
-  .ai-prediction { display: flex; justify-content: space-between; margin-top: 5px; }
-  .ai-prediction .label { color: #8b949e; }
-  .ai-prediction .value { font-weight: bold; color: #00ffff; }
   .tab-status { font-size: 10px; color: #8b949e; text-align: center; margin-top: 5px; padding: 3px; background: var(--bg); border-radius: 3px; }
-  
-  /* NUEVO: Estilos para el control de umbral */
-  .threshold-control { 
-    background: var(--bg); 
-    padding: 10px; 
-    border-radius: 6px; 
-    margin: 10px 0;
-    border: 1px solid var(--border);
-  }
-  .threshold-control label {
-    display: block;
-    color: var(--blue);
-    font-weight: bold;
-    margin-bottom: 5px;
-    font-size: 12px;
-  }
-  .threshold-value {
-    display: inline-block;
-    background: var(--blue);
-    color: white;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-weight: bold;
-    margin-left: 10px;
-  }
-  input[type="range"] {
-    width: 100%;
-    margin: 10px 0;
-  }
-  .threshold-hint {
-    font-size: 10px;
-    color: #8b949e;
-    margin-top: 5px;
-  }
-  
-  /* NUEVO: Panel de estado del sistema */
-  .system-status {
-    background: var(--bg);
-    padding: 10px;
-    border-radius: 6px;
-    margin-top: 10px;
-    border: 1px solid var(--border);
-  }
-  .system-status h4 {
-    color: var(--blue);
-    font-size: 12px;
-    margin-bottom: 8px;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 3px;
-  }
-  .status-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 4px 0;
-    font-size: 11px;
-    border-bottom: 1px solid #222;
-  }
-  .status-item:last-child { border-bottom: none; }
-  .status-ok { color: var(--green); }
-  .status-warn { color: var(--yellow); }
-  .status-error { color: var(--red); }
+  .threshold-container { background: var(--bg); padding: 10px; border-radius: 6px; margin-top: 10px; border: 1px solid var(--border); }
+  .threshold-label { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 11px; }
+  .threshold-value { font-weight: bold; color: var(--yellow); font-size: 14px; }
+  input[type="range"] { width: 100%; height: 6px; border-radius: 3px; background: var(--border); outline: none; -webkit-appearance: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--yellow); cursor: pointer; }
+  .diagnostic-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .diag-item { background: var(--bg); padding: 6px; border-radius: 4px; font-size: 10px; }
+  .diag-label { color: #8b949e; margin-bottom: 2px; }
+  .diag-value { font-weight: bold; color: var(--green); font-size: 12px; }
+  .diag-value.error { color: var(--red); }
+  .diag-value.warning { color: var(--yellow); }
+  .indicator-bar { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 11px; }
+  .indicator-name { color: #8b949e; }
+  .indicator-value { font-weight: bold; }
+  .indicator-signal { font-size: 10px; padding: 2px 6px; border-radius: 3px; }
+  .signal-buy { background: #1a4d2e; color: var(--green); }
+  .signal-sell { background: #4d1a1a; color: var(--red); }
+  .signal-neutral { background: #30363d; color: #8b949e; }
 </style>
 </head>
 <body>
@@ -135,7 +86,7 @@
   <div class="grid">
     <div>
       <div class="card">
-        <h3> Cuentas</h3>
+        <h3>👛 Cuentas</h3>
         <div class="account-selector">
           <button class="account-btn" id="btnDemo" onclick="selectAccount('demo')">
             <div class="type">Demo</div>
@@ -167,18 +118,6 @@
           </select>
         </div>
         <div class="strategy-info" id="strategyInfo"><strong>Ensemble IA:</strong> Combina 4 indicadores con pesos dinámicos</div>
-        
-        <!-- NUEVO: Control de Umbral Visual -->
-        <div class="threshold-control">
-          <label>🎯 Umbral de Señal <span class="threshold-value" id="thresholdValue">50</span></label>
-          <input type="range" id="thresholdSlider" min="30" max="90" value="50" step="5" oninput="updateThreshold()">
-          <div class="threshold-hint">
-            • 30-40: Muy agresivo (muchas operaciones)<br>
-            • 50-60: Moderado (recomendado)<br>
-            • 70-90: Conservador (pocas pero quality)
-          </div>
-        </div>
-        
         <div class="form-group" style="margin-top: 10px;">
           <label>Activo</label>
           <select id="symbol" onchange="changeSymbol()">
@@ -212,43 +151,21 @@
           <label>Stake ($)</label>
           <input type="number" id="stake" value="0.35" min="0.35" step="0.01">
         </div>
-        <button id="btnStart" class="btn btn-primary" onclick="startBot()">▶ INICIAR</button>
-        <button id="btnStop" class="btn btn-danger" onclick="stopBot()" disabled>🛑 DETENER</button>
-      </div>
-
-      <div class="card">
-        <h3>🧠 IA Ensemble</h3>
-        <div class="ai-status">
-          <div class="ai-prediction"><span class="label">Estado:</span><span class="value" id="aiModelStatus">Activo</span></div>
-          <div class="ai-prediction"><span class="label">Predicción:</span><span class="value" id="aiPrediction">---</span></div>
-          <div class="ai-prediction"><span class="label">Confianza:</span><span class="value" id="aiConfidence">0%</span></div>
-          <div class="ai-prediction"><span class="label">Componentes:</span><span class="value" style="font-size: 9px;">EMA+RSI+BB+BO</span></div>
+        
+        <div class="threshold-container">
+          <div class="threshold-label">
+            <span>🎯 Umbral de Score</span>
+            <span class="threshold-value" id="thresholdValue">50</span>
+          </div>
+          <input type="range" id="thresholdSlider" min="30" max="90" value="50" step="5" oninput="updateThreshold(this.value)">
+          <div style="display: flex; justify-content: space-between; font-size: 9px; color: #8b949e; margin-top: 3px;">
+            <span>30 (Agresivo)</span>
+            <span>90 (Conservador)</span>
+          </div>
         </div>
         
-        <!-- NUEVO: Panel de Estado del Sistema -->
-        <div class="system-status">
-          <h4>🔍 Estado del Sistema</h4>
-          <div class="status-item">
-            <span>WebSocket:</span>
-            <span id="statusWS" class="status-error"> Offline</span>
-          </div>
-          <div class="status-item">
-            <span>Datos:</span>
-            <span id="statusData" class="status-warn"> 0/50</span>
-          </div>
-          <div class="status-item">
-            <span>Ensemble IA:</span>
-            <span id="statusAI" class="status-ok">✅ OK</span>
-          </div>
-          <div class="status-item">
-            <span>Bot:</span>
-            <span id="statusBot" class="status-warn">⚪ Inactivo</span>
-          </div>
-          <div class="status-item">
-            <span>Último análisis:</span>
-            <span id="statusLastAnalysis" class="status-warn">--</span>
-          </div>
-        </div>
+        <button id="btnStart" class="btn btn-primary" onclick="startBot()">▶ INICIAR</button>
+        <button id="btnStop" class="btn btn-danger" onclick="stopBot()" disabled>🛑 DETENER</button>
       </div>
 
       <div class="card">
@@ -268,7 +185,7 @@
       <div class="card">
         <h3>📈 Gráfico - <span id="chartSymbol">R_75 (300s)</span> (<span id="candleCount" style="color:var(--yellow)">0</span> velas)</h3>
         <div class="score-display">
-          <div style="font-size: 11px; color: #8b949e;">SCORE ACTUAL</div>
+          <div style="font-size: 11px; color: #8b949e;">SCORE DE OPORTUNIDAD</div>
           <div class="score-val score-low" id="oppScore">0</div>
           <div class="score-reason" id="oppReason">Esperando...</div>
         </div>
@@ -290,6 +207,122 @@
         <div id="alertsList" style="font-size: 11px; color: #8b949e;">Sin alertas</div>
       </div>
     </div>
+
+    <div>
+      <div class="card">
+        <h3>🔍 Panel de Diagnóstico</h3>
+        <div class="diagnostic-grid">
+          <div class="diag-item">
+            <div class="diag-label">WebSocket</div>
+            <div class="diag-value" id="diagWS">Desconectado</div>
+          </div>
+          <div class="diag-item">
+            <div class="diag-label">Velas</div>
+            <div class="diag-value" id="diagCandles">0</div>
+          </div>
+          <div class="diag-item">
+            <div class="diag-label">IA/Ensemble</div>
+            <div class="diag-value" id="diagAI">Inactivo</div>
+          </div>
+          <div class="diag-item">
+            <div class="diag-label">Bot</div>
+            <div class="diag-value" id="diagBot">Detenido</div>
+          </div>
+          <div class="diag-item">
+            <div class="diag-label">Último Score</div>
+            <div class="diag-value" id="diagScore">0</div>
+          </div>
+          <div class="diag-item">
+            <div class="diag-label">Dirección</div>
+            <div class="diag-value" id="diagDirection">---</div>
+          </div>
+          <div class="diag-item">
+            <div class="diag-label">Umbral</div>
+            <div class="diag-value" id="diagThreshold">50</div>
+          </div>
+          <div class="diag-item">
+            <div class="diag-label">Análisis</div>
+            <div class="diag-value" id="diagAnalyses">0</div>
+          </div>
+          <div class="diag-item">
+            <div class="diag-label">Señales</div>
+            <div class="diag-value" id="diagSignals">0</div>
+          </div>
+          <div class="diag-item">
+            <div class="diag-label">Operaciones</div>
+            <div class="diag-value" id="diagTrades">0</div>
+          </div>
+          <div class="diag-item">
+            <div class="diag-label">Último Análisis</div>
+            <div class="diag-value" id="diagLastAnalysis">---</div>
+          </div>
+          <div class="diag-item">
+            <div class="diag-label">Modo</div>
+            <div class="diag-value" id="diagMode">Simulación</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>📊 Indicadores en Vivo</h3>
+        <div id="indicatorsPanel">
+          <div class="indicator-bar">
+            <span class="indicator-name">EMA 20</span>
+            <span class="indicator-value" id="indEMA20">---</span>
+            <span class="indicator-signal signal-neutral" id="indEMA20Signal">---</span>
+          </div>
+          <div class="indicator-bar">
+            <span class="indicator-name">EMA 50</span>
+            <span class="indicator-value" id="indEMA50">---</span>
+            <span class="indicator-signal signal-neutral" id="indEMA50Signal">---</span>
+          </div>
+          <div class="indicator-bar">
+            <span class="indicator-name">RSI (14)</span>
+            <span class="indicator-value" id="indRSI">---</span>
+            <span class="indicator-signal signal-neutral" id="indRSISignal">---</span>
+          </div>
+          <div class="indicator-bar">
+            <span class="indicator-name">Bollinger Sup</span>
+            <span class="indicator-value" id="indBBUpper">---</span>
+            <span class="indicator-signal signal-neutral" id="indBBUpperSignal">---</span>
+          </div>
+          <div class="indicator-bar">
+            <span class="indicator-name">Bollinger Inf</span>
+            <span class="indicator-value" id="indBBLower">---</span>
+            <span class="indicator-signal signal-neutral" id="indBBLowerSignal">---</span>
+          </div>
+          <div class="indicator-bar">
+            <span class="indicator-name">Precio Actual</span>
+            <span class="indicator-value" id="indPrice">---</span>
+            <span class="indicator-signal signal-neutral" id="indPriceSignal">---</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>✅ Estado de Módulos</h3>
+        <div id="modulesStatus" style="font-size: 11px;">
+          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;">
+            <span id="modConnection">⚪</span> Conexión WebSocket
+          </div>
+          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;">
+            <span id="modData">⚪</span> Recepción de datos
+          </div>
+          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;">
+            <span id="modAnalysis">⚪</span> Análisis técnico
+          </div>
+          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;">
+            <span id="modEnsemble">⚪</span> Motor Ensemble IA
+          </div>
+          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;">
+            <span id="modRisk">⚪</span> Gestión de riesgo
+          </div>
+          <div style="margin-bottom: 5px; padding: 4px; background: var(--bg); border-radius: 3px;">
+            <span id="modExecution">⚪</span> Ejecución de trades
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -301,15 +334,14 @@ let subscriptionId = null, botRunning = false, emergencyStopped = false;
 let analysisInterval = null, reconnectAttempts = 0, maxReconnectAttempts = 10;
 let isReconnecting = false, heartbeatInterval = null, userSelectedAccount = false;
 let keepAliveInterval = null, visibilityCheckInterval = null;
-
-// ==========================================
-// ANTI-THROTTLING
-// ==========================================
 let lastAnalysisTime = 0;
 const ANALYSIS_INTERVAL = 5000;
 let isTabVisible = true;
 let missedAnalyses = 0;
-let currentThreshold = 50; // NUEVO: Umbral dinámico
+let totalAnalyses = 0;
+let totalSignals = 0;
+let totalTrades = 0;
+let currentThreshold = 50;
 
 let riskState = {
   initialBalance: 0, currentBalance: 0, dailyPnl: 0,
@@ -317,58 +349,6 @@ let riskState = {
   baseStake: 0.35, currentStake: 0.35,
   isPaused: false, pauseEndTime: 0,
   maxDailyLossPct: 0.05, maxDailyTrades: 20, maxLossStreak: 3
-};
-
-// ==========================================
-// SISTEMA DE LOGGING MEJORADO
-// ==========================================
-const SystemLogger = {
-  components: {
-    websocket: { status: 'error', lastUpdate: null, message: 'Offline' },
-    data: { status: 'warn', lastUpdate: null, message: '0/50 velas' },
-    ensemble: { status: 'ok', lastUpdate: null, message: 'Activo' },
-    bot: { status: 'warn', lastUpdate: null, message: 'Inactivo' },
-    analysis: { status: 'warn', lastUpdate: null, message: '--' }
-  },
-  
-  update: (component, status, message) => {
-    SystemLogger.components[component].status = status;
-    SystemLogger.components[component].lastUpdate = new Date();
-    SystemLogger.components[component].message = message;
-    SystemLogger.updateUI();
-  },
-  
-  updateUI: () => {
-    const ws = document.getElementById('statusWS');
-    const data = document.getElementById('statusData');
-    const ai = document.getElementById('statusAI');
-    const bot = document.getElementById('statusBot');
-    const last = document.getElementById('statusLastAnalysis');
-    
-    const statusMap = {
-      ok: { icon: '✅', class: 'status-ok' },
-      warn: { icon: '⚠️', class: 'status-warn' },
-      error: { icon: '❌', class: 'status-error' }
-    };
-    
-    const wsStatus = statusMap[SystemLogger.components.websocket.status];
-    ws.textContent = `${wsStatus.icon} ${SystemLogger.components.websocket.message}`;
-    ws.className = wsStatus.class;
-    
-    const dataStatus = statusMap[SystemLogger.components.data.status];
-    data.textContent = `${dataStatus.icon} ${SystemLogger.components.data.message}`;
-    data.className = dataStatus.class;
-    
-    const aiStatus = statusMap[SystemLogger.components.ensemble.status];
-    ai.textContent = `${aiStatus.icon} ${SystemLogger.components.ensemble.message}`;
-    ai.className = aiStatus.class;
-    
-    const botStatus = statusMap[SystemLogger.components.bot.status];
-    bot.textContent = `${botStatus.icon} ${SystemLogger.components.bot.message}`;
-    bot.className = botStatus.class;
-    
-    last.textContent = SystemLogger.components.analysis.message;
-  }
 };
 
 // ==========================================
@@ -472,86 +452,72 @@ const StrategyEngine = {
 };
 
 // ==========================================
-// IA ENSEMBLE (Reemplaza la LSTM)
+// IA ENSEMBLE
 // ==========================================
 const AIEngine = {
   weights: { ema: 0.3, rsi: 0.25, bb: 0.25, breakout: 0.2 },
   
   evaluate: (candles) => {
-    if (candles.length < 50) {
-      SystemLogger.update('ensemble', 'warn', 'Esperando datos');
-      return { score: 0, reason: "Datos insuficientes", direction: null, duration: 5 };
-    }
+    if (candles.length < 50) return { score: 0, reason: "Datos insuficientes", direction: null, duration: 5 };
     
-    try {
-      const closes = candles.map(c => c.close);
-      const highs = candles.map(c => c.high);
-      const lows = candles.map(c => c.low);
-      const lastClose = closes[closes.length - 1];
-      
-      // 1. Señal EMA
-      const ema20 = TA.ema(closes, 20);
-      const ema50 = TA.ema(closes, 50);
-      const lastEma20 = ema20[ema20.length - 1];
-      const lastEma50 = ema50[ema50.length - 1];
-      let emaSignal = 0;
-      if (lastEma20 > lastEma50) emaSignal = 1;
-      else if (lastEma20 < lastEma50) emaSignal = -1;
-      
-      // 2. Señal RSI
-      const rsi = TA.rsi(closes, 14);
-      const lastRsi = rsi[rsi.length - 1] || 50;
-      let rsiSignal = 0;
-      if (lastRsi < 30) rsiSignal = 1;
-      else if (lastRsi > 70) rsiSignal = -1;
-      else if (lastRsi > 50) rsiSignal = 0.5;
-      else rsiSignal = -0.5;
-      
-      // 3. Señal Bollinger
-      const bb = TA.bollinger(closes, 20, 2);
-      const lastBBUpper = bb.upper[bb.upper.length - 1];
-      const lastBBLower = bb.lower[bb.lower.length - 1];
-      let bbSignal = 0;
-      if (lastClose <= lastBBLower) bbSignal = 1;
-      else if (lastClose >= lastBBUpper) bbSignal = -1;
-      
-      // 4. Señal Breakout
-      const highest20 = Math.max(...highs.slice(-20));
-      const lowest20 = Math.min(...lows.slice(-20));
-      let breakoutSignal = 0;
-      if (lastClose > highest20) breakoutSignal = 1;
-      else if (lastClose < lowest20) breakoutSignal = -1;
-      
-      // 5. Combinar con pesos
-      const combinedScore = 
-        (emaSignal * AIEngine.weights.ema) +
-        (rsiSignal * AIEngine.weights.rsi) +
-        (bbSignal * AIEngine.weights.bb) +
-        (breakoutSignal * AIEngine.weights.breakout);
-      
-      const score = Math.abs(combinedScore) * 100;
-      const direction = combinedScore > 0 ? 'CALL' : combinedScore < 0 ? 'PUT' : null;
-      
-      const reasons = [];
-      if (emaSignal !== 0) reasons.push(`EMA ${emaSignal > 0 ? '▲' : '▼'}`);
-      if (rsiSignal !== 0) reasons.push(`RSI ${lastRsi.toFixed(0)}`);
-      if (bbSignal !== 0) reasons.push(`BB ${bbSignal > 0 ? 'SV' : 'SC'}`);
-      if (breakoutSignal !== 0) reasons.push(`BO ${breakoutSignal > 0 ? '▲' : '▼'}`);
-      
-      const duration = TA.calculateDuration(candles);
-      
-      SystemLogger.update('ensemble', 'ok', `${reasons.join(', ') || 'Neutral'}`);
-      
-      return {
-        score: Math.min(100, score),
-        reason: reasons.join(', ') || 'Sin confluencia',
-        direction,
-        duration
-      };
-    } catch (error) {
-      SystemLogger.update('ensemble', 'error', error.message);
-      return { score: 0, reason: `Error: ${error.message}`, direction: null, duration: 5 };
-    }
+    const closes = candles.map(c => c.close);
+    const highs = candles.map(c => c.high);
+    const lows = candles.map(c => c.low);
+    const lastClose = closes[closes.length - 1];
+    
+    const ema20 = TA.ema(closes, 20);
+    const ema50 = TA.ema(closes, 50);
+    const lastEma20 = ema20[ema20.length - 1];
+    const lastEma50 = ema50[ema50.length - 1];
+    let emaSignal = 0;
+    if (lastEma20 > lastEma50) emaSignal = 1;
+    else if (lastEma20 < lastEma50) emaSignal = -1;
+    
+    const rsi = TA.rsi(closes, 14);
+    const lastRsi = rsi[rsi.length - 1] || 50;
+    let rsiSignal = 0;
+    if (lastRsi < 30) rsiSignal = 1;
+    else if (lastRsi > 70) rsiSignal = -1;
+    else if (lastRsi > 50) rsiSignal = 0.5;
+    else rsiSignal = -0.5;
+    
+    const bb = TA.bollinger(closes, 20, 2);
+    const lastBBUpper = bb.upper[bb.upper.length - 1];
+    const lastBBLower = bb.lower[bb.lower.length - 1];
+    let bbSignal = 0;
+    if (lastClose <= lastBBLower) bbSignal = 1;
+    else if (lastClose >= lastBBUpper) bbSignal = -1;
+    
+    const highest20 = Math.max(...highs.slice(-20));
+    const lowest20 = Math.min(...lows.slice(-20));
+    let breakoutSignal = 0;
+    if (lastClose > highest20) breakoutSignal = 1;
+    else if (lastClose < lowest20) breakoutSignal = -1;
+    
+    const combinedScore = 
+      (emaSignal * AIEngine.weights.ema) +
+      (rsiSignal * AIEngine.weights.rsi) +
+      (bbSignal * AIEngine.weights.bb) +
+      (breakoutSignal * AIEngine.weights.breakout);
+    
+    const score = Math.abs(combinedScore) * 100;
+    const direction = combinedScore > 0 ? 'CALL' : combinedScore < 0 ? 'PUT' : null;
+    
+    const reasons = [];
+    if (emaSignal !== 0) reasons.push(`EMA ${emaSignal > 0 ? '▲' : '▼'}`);
+    if (rsiSignal !== 0) reasons.push(`RSI ${lastRsi.toFixed(0)}`);
+    if (bbSignal !== 0) reasons.push(`BB ${bbSignal > 0 ? 'sobreventa' : 'sobrecompra'}`);
+    if (breakoutSignal !== 0) reasons.push(`Breakout ${breakoutSignal > 0 ? '▲' : '▼'}`);
+    
+    const duration = TA.calculateDuration(candles);
+    
+    return {
+      score: Math.min(100, score),
+      reason: reasons.join(', ') || 'Sin confluencia',
+      direction,
+      duration,
+      indicators: { ema20: lastEma20, ema50: lastEma50, rsi: lastRsi, bbUpper: lastBBUpper, bbLower: lastBBLower, price: lastClose }
+    };
   },
   
   predict: (candles) => {
@@ -559,7 +525,8 @@ const AIEngine = {
     return {
       direction: result.direction,
       confidence: result.score,
-      reason: `Ensemble: ${result.reason}`
+      reason: `Ensemble: ${result.reason}`,
+      indicators: result.indicators
     };
   },
   
@@ -567,6 +534,10 @@ const AIEngine = {
   prepareData: () => null,
   train: async () => { 
     document.getElementById('aiModelStatus').textContent = 'Ensemble Activo';
+    document.getElementById('diagAI').textContent = 'Activo';
+    document.getElementById('diagAI').className = 'diag-value';
+    log('✅ Ensemble IA activo (sin entrenamiento necesario)', 'diagnostic');
+    updateModuleStatus('modEnsemble', true);
   }
 };
 
@@ -599,30 +570,20 @@ const RiskManager = {
   },
   recordTrade: (isWin) => {
     riskState.tradesToday++;
+    totalTrades++;
     if (isWin) { riskState.wins++; riskState.lossStreak = 0; riskState.currentStake = riskState.baseStake; }
     else {
       riskState.losses++; riskState.lossStreak++;
       if (riskState.lossStreak >= riskState.maxLossStreak) {
         riskState.isPaused = true;
         riskState.pauseEndTime = Date.now() + 15 * 60 * 1000;
-        showAlert(`️ ${riskState.lossStreak} pérdidas. Pausa 15min.`);
+        showAlert(`⚠️ ${riskState.lossStreak} pérdidas. Pausa 15min.`);
       }
       riskState.currentStake = riskState.lossStreak <= 2 ? riskState.baseStake * Math.pow(2, riskState.lossStreak) : riskState.baseStake;
     }
     updateStats();
   }
 };
-
-// ==========================================
-// NUEVO: Control de Umbral
-// ==========================================
-function updateThreshold() {
-  const slider = document.getElementById('thresholdSlider');
-  const valueDisplay = document.getElementById('thresholdValue');
-  currentThreshold = parseInt(slider.value);
-  valueDisplay.textContent = currentThreshold;
-  log(` Umbral actualizado: ${currentThreshold}`, 'info');
-}
 
 // ==========================================
 // CONEXIÓN
@@ -637,7 +598,7 @@ function connect() {
   log(`Conectando... (${reconnectAttempts}/${maxReconnectAttempts})`, 'info');
   document.getElementById('statusBadge').textContent = 'Conectando...';
   document.getElementById('statusBadge').className = 'status-badge status-disconnected';
-  SystemLogger.update('websocket', 'warn', 'Conectando...');
+  updateModuleStatus('modConnection', false);
   
   ws = new WebSocket(SERVER_URL);
 
@@ -646,9 +607,11 @@ function connect() {
     document.getElementById('statusBadge').textContent = 'Conectado';
     document.getElementById('statusBadge').className = 'status-badge status-connected';
     document.getElementById('connectionInfo').textContent = 'Online';
+    document.getElementById('diagWS').textContent = 'Conectado';
+    document.getElementById('diagWS').className = 'diag-value';
+    updateModuleStatus('modConnection', true);
     reconnectAttempts = 0;
     isReconnecting = false;
-    SystemLogger.update('websocket', 'ok', 'Conectado');
     
     if (heartbeatInterval) clearInterval(heartbeatInterval);
     heartbeatInterval = setInterval(() => {
@@ -689,14 +652,16 @@ function connect() {
     document.getElementById('statusBadge').textContent = 'Desconectado';
     document.getElementById('statusBadge').className = 'status-badge status-disconnected';
     document.getElementById('connectionInfo').textContent = 'Offline';
-    SystemLogger.update('websocket', 'error', 'Desconectado');
+    document.getElementById('diagWS').textContent = 'Desconectado';
+    document.getElementById('diagWS').className = 'diag-value error';
+    updateModuleStatus('modConnection', false);
     isReconnecting = false;
     if (heartbeatInterval) clearInterval(heartbeatInterval);
     if (keepAliveInterval) clearInterval(keepAliveInterval);
     
     if (reconnectAttempts < maxReconnectAttempts) {
       const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts), 30000);
-      log(` Reconectando en ${Math.round(delay/1000)}s...`, 'info');
+      log(`⏳ Reconectando en ${Math.round(delay/1000)}s...`, 'info');
       setTimeout(() => {
         connect();
         if (userSelectedAccount && currentAccountId) {
@@ -709,15 +674,12 @@ function connect() {
         }
       }, delay);
     } else {
-      log(" Máximo intentos. Recarga.", 'error');
+      log("❌ Máximo intentos. Recarga.", 'error');
       showAlert("❌ Sin conexión. Recarga.");
     }
   };
 
-  ws.onerror = () => { 
-    log("❌ Error conexión", 'error');
-    SystemLogger.update('websocket', 'error', 'Error');
-  };
+  ws.onerror = () => { log("❌ Error conexión", 'error'); };
 }
 
 function handleMessage(data) {
@@ -777,10 +739,9 @@ function handleMessage(data) {
       if (candles.length > 100) candles = candles.slice(-100);
       updateChart();
       document.getElementById('candleCount').textContent = candles.length;
+      document.getElementById('diagCandles').textContent = candles.length;
       log(`✅ Total: ${candles.length} velas`, 'success');
-      
-      const dataStatus = candles.length >= 50 ? 'ok' : 'warn';
-      SystemLogger.update('data', dataStatus, `${candles.length}/50`);
+      updateModuleStatus('modData', true);
       
       if (candles.length >= 51) {
         setTimeout(() => AIEngine.train(candles), 100);
@@ -807,14 +768,10 @@ function handleMessage(data) {
         candles.push(candle);
         if (candles.length > 100) candles = candles.slice(-100);
         document.getElementById('candleCount').textContent = candles.length;
+        document.getElementById('diagCandles').textContent = candles.length;
         log(`🕯️ Nueva vela. Total: ${candles.length}`, 'info');
+        updateModuleStatus('modData', true);
         
-        const dataStatus = candles.length >= 50 ? 'ok' : 'warn';
-        SystemLogger.update('data', dataStatus, `${candles.length}/50`);
-        
-        if (candles.length % 10 === 0 && candles.length >= 51) {
-          setTimeout(() => AIEngine.train(candles), 100);
-        }
         if (botRunning) analyzeMarket();
         updateChart();
       }
@@ -823,16 +780,25 @@ function handleMessage(data) {
   }
 
   if (data.msg_type === 'proposal') {
-    if (data.error) { log(`Error propuesta: ${data.error.message}`, 'error'); return; }
-    log(`Propuesta ID: ${data.proposal.id}`, 'trade');
+    if (data.error) { 
+      log(`❌ Error propuesta: ${data.error.message}`, 'error'); 
+      updateModuleStatus('modExecution', false);
+      return; 
+    }
+    log(`✅ Propuesta ID: ${data.proposal.id}`, 'trade');
     ws.send(JSON.stringify({ buy: data.proposal.id, price: data.proposal.ask_price }));
     return;
   }
 
   if (data.msg_type === 'buy') {
-    if (data.error) { log(`Error compra: ${data.error.message}`, 'error'); return; }
-    log(`✅ Operación: ${data.buy.contract_id}`, 'success');
+    if (data.error) { 
+      log(`❌ Error compra: ${data.error.message}`, 'error'); 
+      updateModuleStatus('modExecution', false);
+      return; 
+    }
+    log(`✅ Operación ejecutada: ${data.buy.contract_id}`, 'success');
     addTradeToHistory('LIVE', window.pendingTrade?.direction || 'N/A', riskState.currentStake, 'En curso');
+    updateModuleStatus('modExecution', true);
     ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id: data.buy.contract_id, subscribe: 1 }));
     return;
   }
@@ -860,7 +826,7 @@ function processAccounts(accounts) {
   });
   if (!userSelectedAccount) {
     if (accountsData.demo) { log("ℹ️ Auto-seleccionando Demo", 'info'); selectAccount('demo'); }
-    else if (accountsData.real) { log("️ Auto-seleccionando Real", 'info'); selectAccount('real'); }
+    else if (accountsData.real) { log("ℹ️ Auto-seleccionando Real", 'info'); selectAccount('real'); }
   }
 }
 
@@ -871,7 +837,7 @@ function selectAccount(type) {
   document.getElementById('btnDemo').classList.toggle('active', type === 'demo');
   document.getElementById('btnReal').classList.toggle('active', type === 'real');
   log(`🎯 Cuenta ${type}: ${account.id}`, 'info');
-  if (currentAccountId === account.id) { log("️ Ya conectado", 'info'); return; }
+  if (currentAccountId === account.id) { log("ℹ️ Ya conectado", 'info'); return; }
   ws.send(JSON.stringify({ type: 'SELECT_ACCOUNT', account_id: account.id }));
 }
 
@@ -883,7 +849,6 @@ function changeSymbol() {
   updateChart();
   document.getElementById('candleCount').textContent = '0';
   document.getElementById('chartSymbol').textContent = `${symbol} (${granularity}s)`;
-  SystemLogger.update('data', 'warn', '0/50');
   subscribeToCandles(false);
 }
 
@@ -915,7 +880,7 @@ function subscribeToCandles(preserveCandles = false) {
 }
 
 // ==========================================
-// BOT CON ANTI-THROTTLING
+// BOT
 // ==========================================
 function startBot() {
   if (emergencyStopped) { log("Recarga la página", 'error'); return; }
@@ -929,8 +894,10 @@ function startBot() {
   document.getElementById('btnStop').disabled = false;
   document.getElementById('statusBadge').textContent = 'Trading';
   document.getElementById('statusBadge').className = 'status-badge status-trading';
-  SystemLogger.update('bot', 'ok', 'Activo');
+  document.getElementById('diagBot').textContent = 'Activo';
+  document.getElementById('diagBot').className = 'diag-value';
   log(`🤖 Bot iniciado (umbral: ${currentThreshold})`, 'success');
+  updateModuleStatus('modAnalysis', true);
   
   analyzeMarket();
   
@@ -950,7 +917,7 @@ function startBot() {
     
     if (timeSinceLast > 8000) {
       missedAnalyses++;
-      log(`⚡ Catch-up: ${missedAnalyses} análisis(es) perdido(s).`, 'warning');
+      log(`⚡ Catch-up: ${missedAnalyses} análisis perdido(s).`, 'warning');
       analyzeMarket();
       lastAnalysisTime = now;
     }
@@ -965,7 +932,8 @@ function stopBot() {
   document.getElementById('btnStop').disabled = true;
   document.getElementById('statusBadge').textContent = 'Detenido';
   document.getElementById('statusBadge').className = 'status-badge status-disconnected';
-  SystemLogger.update('bot', 'warn', 'Detenido');
+  document.getElementById('diagBot').textContent = 'Detenido';
+  document.getElementById('diagBot').className = 'diag-value warning';
   showAlert("🛑 Bot detenido");
   log("🛑 Detenido", 'error');
 }
@@ -974,10 +942,13 @@ function analyzeMarket() {
   if (!botRunning) return;
   if (candles.length < 50) {
     log(`⚠️ Esperando datos (${candles.length}/50)`, 'info');
-    SystemLogger.update('data', 'warn', `${candles.length}/50`);
     return;
   }
 
+  totalAnalyses++;
+  document.getElementById('diagAnalyses').textContent = totalAnalyses;
+  document.getElementById('diagLastAnalysis').textContent = new Date().toLocaleTimeString();
+  
   const strategy = document.getElementById('strategy').value;
   let eval;
   
@@ -985,22 +956,40 @@ function analyzeMarket() {
     const prediction = AIEngine.predict(candles);
     document.getElementById('aiPrediction').textContent = prediction.direction || '---';
     document.getElementById('aiConfidence').textContent = prediction.confidence.toFixed(1) + '%';
-    eval = prediction.direction ? 
-      { score: prediction.confidence, reason: prediction.reason, direction: prediction.direction, duration: TA.calculateDuration(candles) } :
-      { score: 0, reason: prediction.reason, direction: null, duration: 5 };
+    eval = {
+      score: prediction.confidence,
+      reason: prediction.reason,
+      direction: prediction.direction,
+      duration: TA.calculateDuration(candles),
+      indicators: prediction.indicators
+    };
   } else {
     eval = StrategyEngine.evaluate(strategy, candles);
   }
   
   updateScore(eval.score, eval.reason);
-
-  const timeSinceLast = Date.now() - lastAnalysisTime;
-  SystemLogger.update('analysis', 'ok', `${timeSinceLast/1000}s`);
-
+  document.getElementById('diagScore').textContent = eval.score.toFixed(1);
+  document.getElementById('diagDirection').textContent = eval.direction || '---';
+  
+  if (eval.indicators) {
+    document.getElementById('indEMA20').textContent = eval.indicators.ema20.toFixed(2);
+    document.getElementById('indEMA50').textContent = eval.indicators.ema50.toFixed(2);
+    document.getElementById('indRSI').textContent = eval.indicators.rsi.toFixed(1);
+    document.getElementById('indBBUpper').textContent = eval.indicators.bbUpper.toFixed(2);
+    document.getElementById('indBBLower').textContent = eval.indicators.bbLower.toFixed(2);
+    document.getElementById('indPrice').textContent = eval.indicators.price.toFixed(2);
+    
+    updateIndicatorSignal('indEMA20Signal', eval.indicators.ema20 > eval.indicators.ema50 ? 'buy' : 'sell');
+    updateIndicatorSignal('indRSISignal', eval.indicators.rsi < 30 ? 'buy' : eval.indicators.rsi > 70 ? 'sell' : 'neutral');
+    updateIndicatorSignal('indPriceSignal', eval.direction === 'CALL' ? 'buy' : eval.direction === 'PUT' ? 'sell' : 'neutral');
+  }
+  
   const tabIndicator = isTabVisible ? '' : ' [BG]';
   log(`📊 Análisis${tabIndicator}: Score=${eval.score.toFixed(1)} | ${eval.direction || 'N/A'} | ${eval.reason}`, 'debug');
 
   if (eval.score >= currentThreshold && eval.direction) {
+    totalSignals++;
+    document.getElementById('diagSignals').textContent = totalSignals;
     const riskCheck = RiskManager.canTrade();
     if (riskCheck.allowed) {
       const mode = document.getElementById('mode').value;
@@ -1016,52 +1005,57 @@ function analyzeMarket() {
   }
 }
 
+function updateIndicatorSignal(elementId, signal) {
+  const el = document.getElementById(elementId);
+  el.className = 'indicator-signal signal-' + signal;
+  el.textContent = signal === 'buy' ? '▲' : signal === 'sell' ? '▼' : '—';
+}
+
+// ==========================================
+// ✅ FUNCIÓN CORREGIDA: executeTrade
+// ==========================================
 function executeTrade(direction, duration) {
   const stake = riskState.currentStake;
   const symbol = document.getElementById('symbol').value;
   window.pendingTrade = { direction, duration, stake };
+  
   log(`Solicitando: ${direction} | $${stake.toFixed(2)} | ${duration}t`, 'trade');
-  ws.send(JSON.stringify({
-    proposal: 1, amount: stake, basis: 'stake', contract_type: direction,
-    currency: 'USD', duration: duration, duration_unit: 't', symbol: symbol
-  }));
+  
+  // ✅ CORRECCIÓN: La API V1 de Deriv requiere 'underlying' en lugar de 'symbol'
+  // y 'product_type' para identificar el tipo de contrato
+  const proposal = {
+    proposal: 1,
+    amount: stake,
+    basis: 'stake',
+    contract_type: direction,
+    currency: 'USD',
+    duration: duration,
+    duration_unit: 't',
+    underlying: symbol,      // ← CAMBIO CLAVE
+    product_type: 'basic'    // ← Requerido por API V1
+  };
+  
+  log(`📤 Enviando propuesta (API V1): ${JSON.stringify(proposal)}`, 'debug');
+  ws.send(JSON.stringify(proposal));
 }
 
 // ==========================================
-// DETECTOR DE VISIBILIDAD
+// UI Y DIAGNÓSTICO
 // ==========================================
-document.addEventListener('visibilitychange', () => {
-  isTabVisible = !document.hidden;
-  const tabStatusEl = document.getElementById('tabStatus');
-  
-  if (isTabVisible) {
-    log("👁️ Pestaña activa. Verificando...", 'info');
-    tabStatusEl.textContent = '🟢 Pestaña activa';
-    tabStatusEl.style.color = 'var(--green)';
-    updateChart();
-    if (botRunning) {
-      analyzeMarket();
-      lastAnalysisTime = Date.now();
-      missedAnalyses = 0;
-    }
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      log("✅ WebSocket activo", 'success');
-      SystemLogger.update('websocket', 'ok', 'Conectado');
-    } else {
-      log("⚠️ WebSocket inactivo. Reconectando...", 'warning');
-      SystemLogger.update('websocket', 'error', 'Reconectando');
-      connect();
-    }
-  } else {
-    log("💤 Segundo plano. Bot activo...", 'debug');
-    tabStatusEl.textContent = '🟡 Segundo plano';
-    tabStatusEl.style.color = 'var(--yellow)';
-  }
-});
+function updateThreshold(value) {
+  currentThreshold = parseInt(value);
+  document.getElementById('thresholdValue').textContent = currentThreshold;
+  document.getElementById('diagThreshold').textContent = currentThreshold;
+  log(`🎯 Umbral actualizado: ${currentThreshold}`, 'info');
+}
 
-// ==========================================
-// UI
-// ==========================================
+function updateModuleStatus(moduleId, isWorking) {
+  const el = document.getElementById(moduleId);
+  if (el) {
+    el.textContent = isWorking ? '🟢' : '🔴';
+  }
+}
+
 function initChart() {
   const ctx = document.getElementById('mainChart').getContext('2d');
   chart = new Chart(ctx, {
@@ -1088,7 +1082,7 @@ function updateChart() {
 function updateScore(score, reason) {
   const el = document.getElementById('oppScore');
   el.textContent = score.toFixed(1);
-  el.className = 'score-val ' + (score >= currentThreshold ? 'score-high' : score >= 30 ? 'score-med' : 'score-low');
+  el.className = 'score-val ' + (score >= currentThreshold ? 'score-high' : score >= 40 ? 'score-med' : 'score-low');
   document.getElementById('oppReason').textContent = reason;
 }
 
@@ -1130,21 +1124,46 @@ function log(msg, type = 'info') {
   div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
-  while (container.children.length > 200) container.removeChild(container.firstChild);
+  while (container.children.length > 150) container.removeChild(container.firstChild);
 }
 
+document.addEventListener('visibilitychange', () => {
+  isTabVisible = !document.hidden;
+  const tabStatusEl = document.getElementById('tabStatus');
+  
+  if (isTabVisible) {
+    log("👁️ Pestaña activa", 'info');
+    tabStatusEl.textContent = '🟢 Pestaña activa';
+    tabStatusEl.style.color = 'var(--green)';
+    updateChart();
+    if (botRunning) {
+      analyzeMarket();
+      lastAnalysisTime = Date.now();
+      missedAnalyses = 0;
+    }
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      log("✅ WebSocket activo", 'success');
+    } else {
+      log("⚠️ WebSocket inactivo. Reconectando...", 'warning');
+      connect();
+    }
+  } else {
+    log("💤 Segundo plano (bot activo)", 'debug');
+    tabStatusEl.textContent = '🟡 Segundo plano';
+    tabStatusEl.style.color = 'var(--yellow)';
+  }
+});
+
 window.onload = () => {
-  log("🚀 Sistema iniciado (Ensemble IA + Anti-throttling)", 'info');
+  log("🚀 Sistema iniciado con Ensemble IA", 'diagnostic');
+  log("🔍 Panel de diagnóstico activo", 'diagnostic');
+  log(`🎯 Umbral inicial: ${currentThreshold}`, 'diagnostic');
   initChart();
   connect();
-  SystemLogger.update('websocket', 'warn', 'Conectando...');
-  SystemLogger.update('ensemble', 'ok', 'Activo');
 };
 
 setInterval(() => {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'PING' }));
-  }
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'PING' }));
 }, 60000);
 </script>
 </body>
