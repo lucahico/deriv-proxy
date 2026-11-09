@@ -54,6 +54,7 @@
   .log-trade { border-color: var(--yellow); color: var(--yellow); }
   .log-signal { border-color: var(--purple); color: var(--purple); }
   .log-ai { border-color: #00ffff; color: #00ffff; }
+  .log-debug { border-color: #8b949e; color: #8b949e; }
 
   .status-badge { display: inline-block; padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: bold; }
   .status-connected { background: #1a4d2e; color: var(--green); }
@@ -242,6 +243,8 @@ let heartbeatInterval = null;
 let userSelectedAccount = false;
 let currentSymbol = 'R_75';
 let currentGranularity = 300;
+let historyReceived = false;
+let historyRequestTimeout = null;
 
 let riskState = {
   initialBalance: 0, currentBalance: 0, dailyPnl: 0,
@@ -332,7 +335,6 @@ const StrategyEngine = {
     const rsi = TA.rsi(closes, 14);
     const bb = TA.bollinger(closes, 20, 2);
     
-    // FIX: Validar que los indicadores tengan valores
     if (ema20.length === 0 || ema50.length === 0) {
       return { score: 0, reason: "Indicadores no listos", direction: null, duration: 5 };
     }
@@ -369,7 +371,7 @@ const StrategyEngine = {
 };
 
 // ==========================================
-// MOTOR DE IA CON LSTM (CORREGIDO)
+// MOTOR DE IA CON LSTM
 // ==========================================
 const AIEngine = {
   createModel: () => {
@@ -417,7 +419,6 @@ const AIEngine = {
     try {
       if (!aiState.model) aiState.model = AIEngine.createModel();
       
-      // FIX: Reducir épocas para evitar bloqueo
       const epochs = aiState.trainingCount === 0 ? 3 : 5;
       
       await aiState.model.fit(data.features, data.labels, {
@@ -427,7 +428,6 @@ const AIEngine = {
         callbacks: {
           onEpochEnd: async (epoch, logs) => {
             log(`IA: Época ${epoch + 1}/${epochs} - Loss: ${logs.loss.toFixed(4)}`, 'ai');
-            // FIX: Ceder el hilo al navegador entre épocas
             await new Promise(resolve => setTimeout(resolve, 50));
             await tf.nextFrame();
           }
@@ -530,7 +530,7 @@ const RiskManager = {
 };
 
 // ==========================================
-// CONEXIÓN Y DATOS (CORREGIDO)
+// CONEXIÓN Y DATOS (CORREGIDO CON LOGS DETALLADOS)
 // ==========================================
 function connect() {
   if (isReconnecting) return;
@@ -553,6 +553,7 @@ function connect() {
     document.getElementById('connectionInfo').textContent = 'Conexión estable';
     reconnectAttempts = 0;
     isReconnecting = false;
+    historyReceived = false;
     
     if (heartbeatInterval) clearInterval(heartbeatInterval);
     heartbeatInterval = setInterval(() => {
@@ -568,6 +569,12 @@ function connect() {
   ws.onmessage = (e) => {
     try {
       const data = JSON.parse(e.data);
+      
+      // FIX: Log detallado de todos los mensajes para debug
+      if (data.msg_type) {
+        log(`📨 Recibido: ${data.msg_type}`, 'debug');
+      }
+      
       if (data.type === 'PING') { ws.send(JSON.stringify({ type: 'PONG' })); return; }
       handleMessage(data);
     } catch (err) { log(`Error parseando: ${err.message}`, 'error'); }
@@ -580,6 +587,7 @@ function connect() {
     document.getElementById('connectionInfo').textContent = 'Desconectado';
     isReconnecting = false;
     if (heartbeatInterval) clearInterval(heartbeatInterval);
+    if (historyRequestTimeout) clearTimeout(historyRequestTimeout);
     
     const shouldResubscribe = botRunning || candles.length > 0;
     
@@ -588,10 +596,12 @@ function connect() {
       log(`⏳ Reconectando en ${Math.round(delay/1000)}s...`, 'info');
       setTimeout(() => {
         connect();
-        if (shouldResubscribe && userSelectedAccount) {
+        // FIX: Re-suscribir automáticamente tras reconexión
+        if (shouldResubscribe && userSelectedAccount && currentAccountId) {
           setTimeout(() => {
-            if (ws && ws.readyState === WebSocket.OPEN && currentAccountId) {
-              log("🔄 Re-suscribiendo a velas...", 'info');
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              log("🔄 Re-suscribiendo a velas tras reconexión...", 'info');
+              historyReceived = false;
               subscribeToCandles(true);
             }
           }, 2000);
@@ -620,14 +630,25 @@ function handleMessage(data) {
     document.getElementById('connectionInfo').textContent = `Cuenta: ${data.account_id}`;
     currentAccountId = data.account_id;
     requestBalance();
+    
+    // FIX: Solicitar histórico con timeout
+    historyReceived = false;
     subscribeToCandles(true);
+    
+    // Timeout para re-solicitar si no llega el histórico
+    historyRequestTimeout = setTimeout(() => {
+      if (!historyReceived && candles.length < 50) {
+        log("⚠️ Histórico no recibido. Re-solicitando...", 'error');
+        subscribeToCandles(false);
+      }
+    }, 10000);
+    
     return;
   }
 
   if (data.type === 'DISCONNECTED') { log("🔌 Desconectado de Deriv", 'error'); return; }
   if (data.type === 'ERROR') { log(`❌ Error: ${data.message}`, 'error'); return; }
 
-  // FIX: Manejar confirmación de suscripción
   if (data.msg_type === 'subscription') {
     subscriptionId = data.subscription.id;
     log(`📡 Suscripción activa (ID: ${subscriptionId})`, 'info');
@@ -653,10 +674,16 @@ function handleMessage(data) {
     return;
   }
 
+  // FIX: Manejar histórico correctamente
   if (data.msg_type === 'history') {
+    historyReceived = true;
+    if (historyRequestTimeout) clearTimeout(historyRequestTimeout);
+    
     const newCandles = data.history.prices.map((p, i) => ({
       time: data.history.times[i], open: parseFloat(p), high: parseFloat(p), low: parseFloat(p), close: parseFloat(p)
     }));
+    
+    log(`📊 Histórico recibido: ${newCandles.length} velas`, 'success');
     
     const existingTimes = new Set(candles.map(c => c.time));
     newCandles.forEach(c => { if (!existingTimes.has(c.time)) candles.push(c); });
@@ -664,7 +691,7 @@ function handleMessage(data) {
     if (candles.length > 100) candles = candles.slice(-100);
     
     updateChart();
-    log(`📊 Histórico: ${candles.length} velas (recibidas ${newCandles.length} nuevas)`, 'info');
+    log(`📊 Total: ${candles.length} velas`, 'info');
     
     if (candles.length >= 51 && aiState.trainingCount < 3) {
       setTimeout(() => AIEngine.train(candles), 100);
@@ -673,7 +700,6 @@ function handleMessage(data) {
     return;
   }
 
-  // FIX: Corregir bug de velas duplicadas
   if (data.msg_type === 'ohlc') {
     const ohlc = data.ohlc;
     const candleTime = parseInt(ohlc.open_time);
@@ -720,7 +746,6 @@ function handleMessage(data) {
     log(`✅ Operación ejecutada: ID ${data.buy.contract_id}`, 'success');
     addTradeToHistory('LIVE', window.pendingTrade?.direction || 'N/A', riskState.currentStake, 'En curso');
     
-    // FIX: Suscribirse al estado del contrato
     ws.send(JSON.stringify({
       proposal_open_contract: 1,
       contract_id: data.buy.contract_id,
@@ -825,7 +850,7 @@ function changeSymbol() {
 }
 
 // ==========================================
-// BOT Y ANÁLISIS (CORREGIDO)
+// BOT Y ANÁLISIS
 // ==========================================
 function startBot() {
   if (emergencyStopped) { log("No se puede iniciar. Recarga la página.", 'error'); return; }
@@ -883,7 +908,6 @@ function analyzeMarket() {
   
   updateScore(eval.score, eval.reason);
 
-  // FIX: Log detallado para debug
   if (eval.score >= 50) {
     log(`📊 Score=${eval.score.toFixed(1)} | Dir=${eval.direction || 'N/A'} | ${eval.reason}`, 'info');
   }
@@ -1015,7 +1039,6 @@ window.onload = () => {
   log("🚀 Sistema iniciado con IA LSTM.", 'info');
 };
 
-// FIX: Heartbeat para mantener Render despierto
 setInterval(() => {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'PING' }));
