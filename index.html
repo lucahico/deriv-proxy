@@ -40,7 +40,7 @@
   .log-success { border-color: var(--green); color: var(--green); font-weight: bold; }
   .log-error { border-color: var(--red); color: var(--red); }
   .log-trade { border-color: var(--yellow); color: var(--yellow); }
-  .log-signal { border-color: var(--purple); color: var(--purple); }
+  .log-signal { border-color: var(--purple); color: var(--purple); font-weight: bold; }
   .log-debug { border-color: #8b949e; color: #8b949e; }
   .status-badge { display: inline-block; padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: bold; }
   .status-connected { background: #1a4d2e; color: var(--green); }
@@ -103,7 +103,7 @@
         <div class="strategy-info" id="strategyInfo"><strong>IA LSTM:</strong> Red neuronal</div>
         <div class="form-group" style="margin-top: 10px;">
           <label>Activo</label>
-          <select id="symbol">
+          <select id="symbol" onchange="changeSymbol()">
             <option value="R_10">Volatility 10</option>
             <option value="R_25">Volatility 25</option>
             <option value="R_50">Volatility 50</option>
@@ -113,7 +113,7 @@
         </div>
         <div class="form-group">
           <label>Granularidad</label>
-          <select id="granularity">
+          <select id="granularity" onchange="changeSymbol()">
             <option value="60">1 minuto</option>
             <option value="300" selected>5 minutos</option>
             <option value="900">15 minutos</option>
@@ -162,7 +162,7 @@
 
     <div>
       <div class="card">
-        <h3>📈 Gráfico - <span id="chartSymbol">R_75</span> (<span id="candleCount" style="color:var(--yellow)">0</span> velas)</h3>
+        <h3>📈 Gráfico - <span id="chartSymbol">R_75 (300s)</span> (<span id="candleCount" style="color:var(--yellow)">0</span> velas)</h3>
         <div class="score-display">
           <div style="font-size: 11px; color: #8b949e;">SCORE</div>
           <div class="score-val score-low" id="oppScore">0</div>
@@ -208,9 +208,6 @@ let riskState = {
 
 let aiState = { model: null, isTraining: false, trainingCount: 0 };
 
-// ==========================================
-// ANÁLISIS TÉCNICO
-// ==========================================
 const TA = {
   ema: (data, period) => {
     if (data.length < period) return [];
@@ -267,9 +264,6 @@ const TA = {
   }
 };
 
-// ==========================================
-// ESTRATEGIAS
-// ==========================================
 const StrategyEngine = {
   evaluate: (strategy, candles) => {
     if (candles.length < 50) return { score: 0, reason: "Datos insuficientes", direction: null, duration: 5 };
@@ -308,9 +302,6 @@ const StrategyEngine = {
   }
 };
 
-// ==========================================
-// IA LSTM
-// ==========================================
 const AIEngine = {
   createModel: () => {
     const model = tf.sequential();
@@ -397,9 +388,6 @@ const AIEngine = {
   }
 };
 
-// ==========================================
-// GESTIÓN DE RIESGO
-// ==========================================
 const RiskManager = {
   init: (balance) => {
     if (riskState.initialBalance === 0) {
@@ -440,9 +428,6 @@ const RiskManager = {
   }
 };
 
-// ==========================================
-// CONEXIÓN
-// ==========================================
 function connect() {
   if (isReconnecting) return;
   if (ws && ws.readyState === WebSocket.OPEN) return;
@@ -466,9 +451,7 @@ function connect() {
     
     if (heartbeatInterval) clearInterval(heartbeatInterval);
     heartbeatInterval = setInterval(() => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'PING' }));
-      }
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'PING' }));
     }, 15000);
     
     if (keepAliveInterval) clearInterval(keepAliveInterval);
@@ -487,12 +470,11 @@ function connect() {
   ws.onmessage = (e) => {
     try {
       const data = JSON.parse(e.data);
-      
-      if (data.msg_type) {
-        // No loguear ohlc para no saturar, solo mensajes importantes
-        if (data.msg_type !== 'ohlc' && data.msg_type !== 'tick') {
-          log(`📨 ${data.msg_type}`, 'debug');
-        }
+      // Filtrar spam de balance y ohlc para mantener el log limpio
+      if (data.msg_type === 'ohlc' || data.msg_type === 'tick' || data.msg_type === 'balance') {
+        // Procesar en silencio
+      } else if (data.msg_type) {
+        log(`📨 ${data.msg_type}`, 'debug');
       } else if (data.type) {
         log(`📨 type:${data.type}`, 'debug');
       }
@@ -551,17 +533,16 @@ function handleMessage(data) {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
     }
-    
     subscribeToCandles(true);
     return;
   }
 
-  if (data.type === 'DISCONNECTED') { log("🔌 Desconectado Deriv", 'error'); return; }
-  if (data.type === 'ERROR') { log(`❌ ${data.message}`, 'error'); return; }
+  if (data.type === 'DISCONNECTED' || data.type === 'ERROR') { 
+    log(`🔌 ${data.message || 'Desconectado'}`, 'error'); return; 
+  }
 
   if (data.msg_type === 'subscription') {
     subscriptionId = data.subscription.id;
-    log(`📡 Suscripción: ${subscriptionId}`, 'info');
     return;
   }
 
@@ -579,25 +560,17 @@ function handleMessage(data) {
     }
     
     if (accId === currentAccountId) RiskManager.init(balance);
-    log(`💰 ${accId}: ${balance.toFixed(2)} ${currency}`, 'success');
     return;
   }
 
-  // ✅ CORRECCIÓN CLAVE: Deriv envía 'candles' como un ARRAY de objetos, NO como {prices, times}
   if (data.msg_type === 'candles') {
     if (Array.isArray(data.candles)) {
       log(`📊 Histórico WS recibido: ${data.candles.length} velas`, 'success');
-      
       candles = data.candles.map(c => ({
-        time: c.epoch,
-        open: parseFloat(c.open),
-        high: parseFloat(c.high),
-        low: parseFloat(c.low),
-        close: parseFloat(c.close)
+        time: c.epoch, open: parseFloat(c.open), high: parseFloat(c.high),
+        low: parseFloat(c.low), close: parseFloat(c.close)
       }));
-      
       if (candles.length > 100) candles = candles.slice(-100);
-      
       updateChart();
       document.getElementById('candleCount').textContent = candles.length;
       log(`✅ Total velas en gráfico: ${candles.length}`, 'success');
@@ -606,6 +579,8 @@ function handleMessage(data) {
         setTimeout(() => AIEngine.train(candles), 100);
       }
       if (botRunning) analyzeMarket();
+    } else {
+      log(`⚠️ Formato de velas no reconocido`, 'error');
     }
     return;
   }
@@ -614,20 +589,14 @@ function handleMessage(data) {
     const ohlc = data.ohlc;
     const candleTime = parseInt(ohlc.open_time);
     const candle = {
-      time: candleTime,
-      open: parseFloat(ohlc.open),
-      high: parseFloat(ohlc.high),
-      low: parseFloat(ohlc.low),
-      close: parseFloat(ohlc.close)
+      time: candleTime, open: parseFloat(ohlc.open), high: parseFloat(ohlc.high),
+      low: parseFloat(ohlc.low), close: parseFloat(ohlc.close)
     };
-    
     const lastCandle = candles[candles.length - 1];
     if (lastCandle && lastCandle.time === candleTime) {
-      // Actualizar vela en formación
       candles[candles.length - 1] = candle;
       updateChart();
     } else {
-      // Nueva vela cerrada
       const isDuplicate = candles.some(c => c.time === candleTime);
       if (!isDuplicate) {
         candles.push(candle);
@@ -681,7 +650,6 @@ function processAccounts(accounts) {
       document.getElementById('realBalance').textContent = parseFloat(acc.balance).toFixed(2) + ' ' + acc.currency;
     }
   });
-
   if (!userSelectedAccount) {
     if (accountsData.demo) { log("ℹ️ Auto-seleccionando Demo", 'info'); selectAccount('demo'); }
     else if (accountsData.real) { log("ℹ️ Auto-seleccionando Real", 'info'); selectAccount('real'); }
@@ -699,12 +667,36 @@ function selectAccount(type) {
   ws.send(JSON.stringify({ type: 'SELECT_ACCOUNT', account_id: account.id }));
 }
 
+// ==========================================
+// FUNCIONES CORREGIDAS PARA CAMBIO DE ACTIVO/GRANULARIDAD
+// ==========================================
+function changeSymbol() {
+  const symbol = document.getElementById('symbol').value;
+  const granularity = parseInt(document.getElementById('granularity').value);
+  log(`🔄 Cambiando a ${symbol} (${granularity}s)...`, 'info');
+  
+  // 1. Limpiar datos anteriores inmediatamente
+  candles = [];
+  updateChart();
+  document.getElementById('candleCount').textContent = '0';
+  document.getElementById('chartSymbol').textContent = `${symbol} (${granularity}s)`;
+  
+  // 2. Forzar nueva suscripción
+  subscribeToCandles(false);
+}
+
 function subscribeToCandles(preserveCandles = false) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    log("⚠️ Error: WebSocket no está conectado. Reconectando...", 'error');
+    connect();
+    return;
+  }
+  
   const symbol = document.getElementById('symbol').value;
   const granularity = parseInt(document.getElementById('granularity').value);
   
   if (subscriptionId) {
+    log(`📡 Cancelando suscripción anterior (ID: ${subscriptionId})`, 'debug');
     ws.send(JSON.stringify({ forget: subscriptionId }));
     subscriptionId = null;
   }
@@ -712,19 +704,25 @@ function subscribeToCandles(preserveCandles = false) {
   if (!preserveCandles) {
     candles = [];
     updateChart();
+    document.getElementById('candleCount').textContent = '0';
   }
 
-  log(`📡 Suscribiendo: ${symbol} (${granularity}s)`, 'info');
-  ws.send(JSON.stringify({
-    ticks_history: symbol, adjust_start_time: 1, count: 100, end: 'latest',
-    style: 'candles', granularity: granularity, subscribe: 1
-  }));
-  document.getElementById('chartSymbol').textContent = symbol;
+  log(`📡 Solicitando histórico: ${symbol} | Granularidad: ${granularity}s`, 'info');
+  
+  const request = {
+    ticks_history: symbol,
+    adjust_start_time: 1,
+    count: 100,
+    end: 'latest',
+    style: 'candles',
+    granularity: granularity,
+    subscribe: 1
+  };
+  
+  log(`📤 Enviando petición: ${JSON.stringify(request)}`, 'debug');
+  ws.send(JSON.stringify(request));
 }
 
-// ==========================================
-// BOT
-// ==========================================
 function startBot() {
   if (emergencyStopped) { log("Recarga la página", 'error'); return; }
   if (candles.length < 50) { log(`⚠️ Faltan datos (${candles.length}/50)`, 'error'); return; }
@@ -772,22 +770,21 @@ function analyzeMarket() {
   
   updateScore(eval.score, eval.reason);
 
-  if (eval.score >= 50) {
-    log(`📊 Score=${eval.score.toFixed(1)} | ${eval.direction || 'N/A'} | ${eval.reason}`, 'info');
-  }
+  // Mostrar siempre el análisis para que veas que el bot está vivo
+  log(`📊 Análisis: Score=${eval.score.toFixed(1)} | Dir=${eval.direction || 'N/A'} | ${eval.reason}`, 'debug');
 
   if (eval.score >= 70 && eval.direction) {
     const riskCheck = RiskManager.canTrade();
     if (riskCheck.allowed) {
       const mode = document.getElementById('mode').value;
       if (mode === 'sim') {
-        log(`[SIM] ${eval.direction} | Score: ${eval.score.toFixed(1)}`, 'signal');
+        log(`🎯 [SIMULACIÓN] Señal: ${eval.direction} | Score: ${eval.score.toFixed(1)}`, 'signal');
         addTradeToHistory('SIM', eval.direction, 0, `Score: ${eval.score.toFixed(0)}`);
       } else {
         executeTrade(eval.direction, eval.duration);
       }
     } else {
-      log(`⚠️ Ignorada: ${riskCheck.reason}`, 'info');
+      log(`⚠️ Señal ignorada: ${riskCheck.reason}`, 'info');
     }
   }
 }
@@ -803,9 +800,6 @@ function executeTrade(direction, duration) {
   }));
 }
 
-// ==========================================
-// UI
-// ==========================================
 function initChart() {
   const ctx = document.getElementById('mainChart').getContext('2d');
   chart = new Chart(ctx, {
@@ -877,9 +871,6 @@ function log(msg, type = 'info') {
   while (container.children.length > 150) container.removeChild(container.firstChild);
 }
 
-// ==========================================
-// INICIALIZACIÓN
-// ==========================================
 window.onload = () => {
   log("🚀 Sistema iniciado", 'info');
   initChart();
