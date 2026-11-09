@@ -279,7 +279,6 @@ let riskState = {
   maxDailyLossPct: 0.05, maxDailyTrades: 20, maxLossStreak: 3
 };
 
-// Helper seguro para actualizar elementos DOM
 function safeSetText(id, text) {
   const el = document.getElementById(id);
   if (el) el.textContent = text;
@@ -290,9 +289,6 @@ function safeSetClass(id, className) {
   if (el) el.className = className;
 }
 
-// ==========================================
-// ANÁLISIS TÉCNICO
-// ==========================================
 const TA = {
   ema: (data, period) => {
     if (data.length < period) return [];
@@ -349,9 +345,6 @@ const TA = {
   }
 };
 
-// ==========================================
-// ESTRATEGIAS TRADICIONALES
-// ==========================================
 const StrategyEngine = {
   evaluate: (strategy, candles) => {
     if (candles.length < 50) return { score: 0, reason: "Datos insuficientes", direction: null, duration: 5 };
@@ -390,9 +383,6 @@ const StrategyEngine = {
   }
 };
 
-// ==========================================
-// IA ENSEMBLE
-// ==========================================
 const AIEngine = {
   weights: { ema: 0.3, rsi: 0.25, bb: 0.25, breakout: 0.2 },
   
@@ -472,7 +462,6 @@ const AIEngine = {
   createModel: () => null,
   prepareData: () => null,
   train: async () => { 
-    // ✅ CORRECCIÓN: Verificar existencia de elementos antes de modificarlos
     safeSetText('aiPrediction', 'Activo');
     safeSetText('diagAI', 'Activo');
     safeSetClass('diagAI', 'diag-value');
@@ -481,9 +470,6 @@ const AIEngine = {
   }
 };
 
-// ==========================================
-// GESTIÓN DE RIESGO
-// ==========================================
 const RiskManager = {
   init: (balance) => {
     if (riskState.initialBalance === 0) {
@@ -525,9 +511,6 @@ const RiskManager = {
   }
 };
 
-// ==========================================
-// CONEXIÓN
-// ==========================================
 function connect() {
   if (isReconnecting) return;
   if (ws && ws.readyState === WebSocket.OPEN) return;
@@ -819,9 +802,6 @@ function subscribeToCandles(preserveCandles = false) {
   }));
 }
 
-// ==========================================
-// BOT
-// ==========================================
 function startBot() {
   if (emergencyStopped) { log("Recarga la página", 'error'); return; }
   if (candles.length < 50) { log(`⚠️ Faltan datos (${candles.length}/50)`, 'error'); return; }
@@ -957,6 +937,7 @@ function updateIndicatorSignal(elementId, signal) {
   }
 }
 
+// ✅ FUNCIÓN CORREGIDA: Usa formato Legacy API
 function executeTrade(direction, duration) {
   const stake = riskState.currentStake;
   const symbol = document.getElementById('symbol').value;
@@ -964,6 +945,9 @@ function executeTrade(direction, duration) {
   
   log(`Solicitando: ${direction} | $${stake.toFixed(2)} | ${duration}t`, 'trade');
   
+  // ✅ CORRECCIÓN: Formato Legacy API (no V1)
+  // La URL privada del OTP es solo para autenticación,
+  // pero las propuestas usan el formato Legacy
   const proposal = {
     proposal: 1,
     amount: stake,
@@ -972,17 +956,14 @@ function executeTrade(direction, duration) {
     currency: 'USD',
     duration: duration,
     duration_unit: 't',
-    underlying: symbol,
-    product_type: 'basic'
+    symbol: symbol  // ← 'symbol' en lugar de 'underlying'
+    // ← SIN 'product_type' ni 'underlying_symbol'
   };
   
-  log(`📤 Enviando propuesta (API V1): ${JSON.stringify(proposal)}`, 'debug');
+  log(`📤 Enviando propuesta (Legacy): ${JSON.stringify(proposal)}`, 'debug');
   ws.send(JSON.stringify(proposal));
 }
 
-// ==========================================
-// UI Y DIAGNÓSTICO
-// ==========================================
 function updateThreshold(value) {
   currentThreshold = parseInt(value);
   safeSetText('thresholdValue', currentThreshold);
