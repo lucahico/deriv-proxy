@@ -86,16 +86,23 @@
   <div class="grid">
     <div>
       <div class="card">
-        <h3>👛 Cuenta</h3>
+        <h3>👛 Cuentas</h3>
+        <div class="account-selector">
+          <button class="account-btn" id="btnDemo" onclick="selectAccount('demo')">
+            <div class="type">Demo</div>
+            <div class="balance" id="demoBalance">---</div>
+            <div class="id" id="demoId">...</div>
+          </button>
+          <button class="account-btn" id="btnReal" onclick="selectAccount('real')">
+            <div class="type">Real</div>
+            <div class="balance" id="realBalance">---</div>
+            <div class="id" id="realId">...</div>
+          </button>
+        </div>
         <div style="text-align: center; margin-top: 10px;">
           <span id="statusBadge" class="status-badge status-disconnected">Offline</span>
           <div class="connection-info" id="connectionInfo">Esperando...</div>
           <div class="tab-status" id="tabStatus">🟢 Pestaña activa</div>
-        </div>
-        <div style="margin-top: 15px; padding: 10px; background: var(--bg); border-radius: 4px;">
-          <div style="font-size: 10px; color: #8b949e;">Saldo</div>
-          <div style="font-size: 18px; font-weight: bold; color: var(--green);" id="currentBalance">---</div>
-          <div style="font-size: 10px; color: #8b949e; margin-top: 5px;" id="accountId">---</div>
         </div>
       </div>
 
@@ -110,7 +117,7 @@
             <option value="AI" selected>🤖 Ensemble IA</option>
           </select>
         </div>
-        <div class="strategy-info" id="strategyInfo"><strong>Ensemble IA:</strong> Combina 4 indicadores con pesos dinámicos</div>
+        <div class="strategy-info" id="strategyInfo"><strong>Ensemble IA:</strong> Combina 4 indicadores</div>
         <div class="form-group" style="margin-top: 10px;">
           <label>Activo</label>
           <select id="symbol" onchange="changeSymbol()">
@@ -144,7 +151,6 @@
           <label>Stake ($)</label>
           <input type="number" id="stake" value="0.35" min="0.35" step="0.01">
         </div>
-        
         <div class="threshold-container">
           <div class="threshold-label">
             <span>🎯 Umbral de Score</span>
@@ -152,11 +158,9 @@
           </div>
           <input type="range" id="thresholdSlider" min="30" max="90" value="50" step="5" oninput="updateThreshold(this.value)">
           <div style="display: flex; justify-content: space-between; font-size: 9px; color: #8b949e; margin-top: 3px;">
-            <span>30 (Agresivo)</span>
-            <span>90 (Conservador)</span>
+            <span>30 (Agresivo)</span><span>90 (Conservador)</span>
           </div>
         </div>
-        
         <button id="btnStart" class="btn btn-primary" onclick="startBot()">▶ INICIAR</button>
         <button id="btnStop" class="btn btn-danger" onclick="stopBot()" disabled>🛑 DETENER</button>
       </div>
@@ -164,6 +168,7 @@
       <div class="card">
         <h3>📊 Stats</h3>
         <div class="stats-grid">
+          <div class="stat-item"><div class="stat-label">Saldo</div><div class="stat-value" id="currentBalance">---</div></div>
           <div class="stat-item"><div class="stat-label">P&L</div><div class="stat-value" id="dailyPnl">0.00</div></div>
           <div class="stat-item"><div class="stat-label">Trades</div><div class="stat-value" id="tradesCount">0/20</div></div>
           <div class="stat-item"><div class="stat-label">Win Rate</div><div class="stat-value" id="winRate">0%</div></div>
@@ -249,9 +254,11 @@
 <script>
 const SERVER_URL = "wss://deriv-proxy-hwhi.onrender.com";
 let ws = null, chart = null, candles = [], currentAccountId = null;
+let accountsData = { demo: null, real: null };
 let subscriptionId = null, botRunning = false, emergencyStopped = false;
 let analysisInterval = null, reconnectAttempts = 0, maxReconnectAttempts = 10;
-let isReconnecting = false, heartbeatInterval = null;
+let isReconnecting = false, heartbeatInterval = null, userSelectedAccount = false;
+let keepAliveInterval = null, visibilityCheckInterval = null;
 let lastAnalysisTime = 0;
 const ANALYSIS_INTERVAL = 5000;
 let isTabVisible = true;
@@ -273,7 +280,6 @@ function safeSetText(id, text) {
   const el = document.getElementById(id);
   if (el) el.textContent = text;
 }
-
 function safeSetClass(id, className) {
   const el = document.getElementById(id);
   if (el) el.className = className;
@@ -375,15 +381,12 @@ const StrategyEngine = {
 
 const AIEngine = {
   weights: { ema: 0.3, rsi: 0.25, bb: 0.25, breakout: 0.2 },
-  
   evaluate: (candles) => {
     if (candles.length < 50) return { score: 0, reason: "Datos insuficientes", direction: null, duration: 5 };
-    
     const closes = candles.map(c => c.close);
     const highs = candles.map(c => c.high);
     const lows = candles.map(c => c.low);
     const lastClose = closes[closes.length - 1];
-    
     const ema20 = TA.ema(closes, 20);
     const ema50 = TA.ema(closes, 50);
     const lastEma20 = ema20[ema20.length - 1];
@@ -391,7 +394,6 @@ const AIEngine = {
     let emaSignal = 0;
     if (lastEma20 > lastEma50) emaSignal = 1;
     else if (lastEma20 < lastEma50) emaSignal = -1;
-    
     const rsi = TA.rsi(closes, 14);
     const lastRsi = rsi[rsi.length - 1] || 50;
     let rsiSignal = 0;
@@ -399,60 +401,35 @@ const AIEngine = {
     else if (lastRsi > 70) rsiSignal = -1;
     else if (lastRsi > 50) rsiSignal = 0.5;
     else rsiSignal = -0.5;
-    
     const bb = TA.bollinger(closes, 20, 2);
     const lastBBUpper = bb.upper[bb.upper.length - 1];
     const lastBBLower = bb.lower[bb.lower.length - 1];
     let bbSignal = 0;
     if (lastClose <= lastBBLower) bbSignal = 1;
     else if (lastClose >= lastBBUpper) bbSignal = -1;
-    
     const highest20 = Math.max(...highs.slice(-20));
     const lowest20 = Math.min(...lows.slice(-20));
     let breakoutSignal = 0;
     if (lastClose > highest20) breakoutSignal = 1;
     else if (lastClose < lowest20) breakoutSignal = -1;
-    
-    const combinedScore = 
-      (emaSignal * AIEngine.weights.ema) +
-      (rsiSignal * AIEngine.weights.rsi) +
-      (bbSignal * AIEngine.weights.bb) +
-      (breakoutSignal * AIEngine.weights.breakout);
-    
+    const combinedScore = (emaSignal * AIEngine.weights.ema) + (rsiSignal * AIEngine.weights.rsi) + (bbSignal * AIEngine.weights.bb) + (breakoutSignal * AIEngine.weights.breakout);
     const score = Math.abs(combinedScore) * 100;
     const direction = combinedScore > 0 ? 'CALL' : combinedScore < 0 ? 'PUT' : null;
-    
     const reasons = [];
     if (emaSignal !== 0) reasons.push(`EMA ${emaSignal > 0 ? '▲' : '▼'}`);
     if (rsiSignal !== 0) reasons.push(`RSI ${lastRsi.toFixed(0)}`);
     if (bbSignal !== 0) reasons.push(`BB ${bbSignal > 0 ? 'sobreventa' : 'sobrecompra'}`);
     if (breakoutSignal !== 0) reasons.push(`Breakout ${breakoutSignal > 0 ? '▲' : '▼'}`);
-    
     const duration = TA.calculateDuration(candles);
-    
-    return {
-      score: Math.min(100, score),
-      reason: reasons.join(', ') || 'Sin confluencia',
-      direction,
-      duration,
-      indicators: { ema20: lastEma20, ema50: lastEma50, rsi: lastRsi, bbUpper: lastBBUpper, bbLower: lastBBLower, price: lastClose }
-    };
+    return { score: Math.min(100, score), reason: reasons.join(', ') || 'Sin confluencia', direction, duration, indicators: { ema20: lastEma20, ema50: lastEma50, rsi: lastRsi, bbUpper: lastBBUpper, bbLower: lastBBLower, price: lastClose } };
   },
-  
   predict: (candles) => {
     const result = AIEngine.evaluate(candles);
-    return {
-      direction: result.direction,
-      confidence: result.score,
-      reason: `Ensemble: ${result.reason}`,
-      indicators: result.indicators
-    };
+    return { direction: result.direction, confidence: result.score, reason: `Ensemble: ${result.reason}`, indicators: result.indicators };
   },
-  
   createModel: () => null,
   prepareData: () => null,
   train: async () => { 
-    safeSetText('aiPrediction', 'Activo');
     safeSetText('diagAI', 'Activo');
     safeSetClass('diagAI', 'diag-value');
     log('✅ Ensemble IA activo', 'diagnostic');
@@ -504,40 +481,45 @@ const RiskManager = {
 function connect() {
   if (isReconnecting) return;
   if (ws && ws.readyState === WebSocket.OPEN) return;
-  
   isReconnecting = true;
   reconnectAttempts++;
-  
   log(`Conectando... (${reconnectAttempts}/${maxReconnectAttempts})`, 'info');
   safeSetText('statusBadge', 'Conectando...');
   safeSetClass('statusBadge', 'status-badge status-disconnected');
   updateModuleStatus('modConnection', false);
-  
   ws = new WebSocket(SERVER_URL);
 
   ws.onopen = () => {
-    log("✅ Conectado al servidor proxy", 'success');
-    safeSetText('statusBadge', 'Conectando a Deriv...');
-    safeSetClass('statusBadge', 'status-badge status-disconnected');
-    safeSetText('connectionInfo', 'Autenticando...');
+    log("✅ Conectado al servidor", 'success');
+    safeSetText('statusBadge', 'Conectado');
+    safeSetClass('statusBadge', 'status-badge status-connected');
+    safeSetText('connectionInfo', 'Online');
+    safeSetText('diagWS', 'Conectado');
+    safeSetClass('diagWS', 'diag-value');
+    updateModuleStatus('modConnection', true);
     reconnectAttempts = 0;
     isReconnecting = false;
-    
     if (heartbeatInterval) clearInterval(heartbeatInterval);
     heartbeatInterval = setInterval(() => {
-      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ ping: 1 }));
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'PING' }));
     }, 30000);
+    if (keepAliveInterval) clearInterval(keepAliveInterval);
+    keepAliveInterval = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN && currentAccountId) ws.send(JSON.stringify({ balance: 1 }));
+    }, 15000);
+    if (currentAccountId && userSelectedAccount) {
+      log(`🔄 Reconectando a ${currentAccountId}...`, 'info');
+      ws.send(JSON.stringify({ type: 'SELECT_ACCOUNT', account_id: currentAccountId }));
+    }
   };
 
   ws.onmessage = (e) => {
     try {
       const data = JSON.parse(e.data);
-      if (data.msg_type === 'ohlc' || data.msg_type === 'tick' || data.msg_type === 'balance') {
-        // Silencioso
-      } else if (data.msg_type) {
-        log(`📨 ${data.msg_type}`, 'debug');
-      }
-      
+      if (data.msg_type === 'ohlc' || data.msg_type === 'tick' || data.msg_type === 'balance') {}
+      else if (data.msg_type) log(`📨 ${data.msg_type}`, 'debug');
+      else if (data.type) log(`📨 type:${data.type}`, 'debug');
+      if (data.type === 'PING') { ws.send(JSON.stringify({ type: 'PONG' })); return; }
       handleMessage(data);
     } catch (err) { log(`Parse error: ${err.message}`, 'error'); }
   };
@@ -552,11 +534,21 @@ function connect() {
     updateModuleStatus('modConnection', false);
     isReconnecting = false;
     if (heartbeatInterval) clearInterval(heartbeatInterval);
-    
+    if (keepAliveInterval) clearInterval(keepAliveInterval);
     if (reconnectAttempts < maxReconnectAttempts) {
       const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts), 30000);
       log(`⏳ Reconectando en ${Math.round(delay/1000)}s...`, 'info');
-      setTimeout(() => connect(), delay);
+      setTimeout(() => {
+        connect();
+        if (userSelectedAccount && currentAccountId) {
+          setTimeout(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              log("🔄 Re-suscribiendo...", 'info');
+              subscribeToCandles(false);
+            }
+          }, 2000);
+        }
+      }, delay);
     } else {
       log("❌ Máximo intentos. Recarga.", 'error');
       showAlert("❌ Sin conexión. Recarga.");
@@ -567,65 +559,58 @@ function connect() {
 }
 
 function handleMessage(data) {
-  // Manejar respuesta de authorize (autenticación Legacy)
-  if (data.msg_type === 'authorize' && data.authorize) {
-    log(`✅ Autenticado como: ${data.authorize.loginid}`, 'success');
+  if (data.type === 'ACCOUNTS_LIST') {
+    log(`📋 ${data.accounts.length} cuentas`, 'info');
+    processAccounts(data.accounts);
+    return;
+  }
+  if (data.type === 'CONNECTED') {
+    log(`✅ Cuenta: ${data.account_id}`, 'success');
     safeSetText('statusBadge', 'Conectado');
     safeSetClass('statusBadge', 'status-badge status-connected');
-    safeSetText('connectionInfo', `Cuenta: ${data.authorize.loginid}`);
-    safeSetText('accountId', data.authorize.loginid);
-    currentAccountId = data.authorize.loginid;
-    safeSetText('diagWS', 'Conectado');
-    safeSetClass('diagWS', 'diag-value');
-    updateModuleStatus('modConnection', true);
-    
-    // Pedir saldo
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-    }
+    safeSetText('connectionInfo', `Cuenta: ${data.account_id}`);
+    currentAccountId = data.account_id;
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
     subscribeToCandles(true);
     return;
   }
-
+  if (data.type === 'DISCONNECTED' || data.type === 'ERROR') { 
+    log(`🔌 ${data.message || 'Desconectado'}`, 'error'); return; 
+  }
+  if (data.msg_type === 'subscription') { subscriptionId = data.subscription.id; return; }
   if (data.msg_type === 'balance') {
     const balance = parseFloat(data.balance.balance);
     const currency = data.balance.currency;
-    
-    safeSetText('currentBalance', balance.toFixed(2) + ' ' + currency);
-    
-    if (currentAccountId) RiskManager.init(balance);
+    const accId = data.balance.loginid;
+    if (accountsData.demo && accountsData.demo.id === accId) {
+      accountsData.demo.balance = balance;
+      safeSetText('demoBalance', balance.toFixed(2) + ' ' + currency);
+    } else if (accountsData.real && accountsData.real.id === accId) {
+      accountsData.real.balance = balance;
+      safeSetText('realBalance', balance.toFixed(2) + ' ' + currency);
+    }
+    if (accId === currentAccountId) RiskManager.init(balance);
     return;
   }
-
   if (data.msg_type === 'candles') {
     if (Array.isArray(data.candles)) {
       log(`📊 Histórico WS: ${data.candles.length} velas`, 'success');
-      candles = data.candles.map(c => ({
-        time: c.epoch, open: parseFloat(c.open), high: parseFloat(c.high),
-        low: parseFloat(c.low), close: parseFloat(c.close)
-      }));
+      candles = data.candles.map(c => ({ time: c.epoch, open: parseFloat(c.open), high: parseFloat(c.high), low: parseFloat(c.low), close: parseFloat(c.close) }));
       if (candles.length > 100) candles = candles.slice(-100);
       updateChart();
       safeSetText('candleCount', candles.length);
       safeSetText('diagCandles', candles.length);
       log(`✅ Total: ${candles.length} velas`, 'success');
       updateModuleStatus('modData', true);
-      
-      if (candles.length >= 51) {
-        setTimeout(() => AIEngine.train(candles), 100);
-      }
+      if (candles.length >= 51) setTimeout(() => AIEngine.train(candles), 100);
       if (botRunning) analyzeMarket();
     }
     return;
   }
-
   if (data.msg_type === 'ohlc') {
     const ohlc = data.ohlc;
     const candleTime = parseInt(ohlc.open_time);
-    const candle = {
-      time: candleTime, open: parseFloat(ohlc.open), high: parseFloat(ohlc.high),
-      low: parseFloat(ohlc.low), close: parseFloat(ohlc.close)
-    };
+    const candle = { time: candleTime, open: parseFloat(ohlc.open), high: parseFloat(ohlc.high), low: parseFloat(ohlc.low), close: parseFloat(ohlc.close) };
     const lastCandle = candles[candles.length - 1];
     if (lastCandle && lastCandle.time === candleTime) {
       candles[candles.length - 1] = candle;
@@ -639,14 +624,12 @@ function handleMessage(data) {
         safeSetText('diagCandles', candles.length);
         log(`🕯️ Nueva vela. Total: ${candles.length}`, 'info');
         updateModuleStatus('modData', true);
-        
         if (botRunning) analyzeMarket();
         updateChart();
       }
     }
     return;
   }
-
   if (data.msg_type === 'proposal') {
     if (data.error) { 
       log(`❌ Error propuesta: ${data.error.message}`, 'error'); 
@@ -657,7 +640,6 @@ function handleMessage(data) {
     ws.send(JSON.stringify({ buy: data.proposal.id, price: data.proposal.ask_price }));
     return;
   }
-
   if (data.msg_type === 'buy') {
     if (data.error) { 
       log(`❌ Error compra: ${data.error.message}`, 'error'); 
@@ -670,7 +652,6 @@ function handleMessage(data) {
     ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id: data.buy.contract_id, subscribe: 1 }));
     return;
   }
-
   if (data.msg_type === 'proposal_open_contract' && data.proposal_open_contract.is_sold) {
     const profit = parseFloat(data.proposal_open_contract.profit);
     const isWin = profit > 0;
@@ -678,6 +659,35 @@ function handleMessage(data) {
     log(`${isWin ? '✅ GANADA' : '❌ PERDIDA'}: ${profit.toFixed(2)}`, isWin ? 'success' : 'error');
     return;
   }
+}
+
+function processAccounts(accounts) {
+  accounts.forEach(acc => {
+    if (acc.type === 'demo') {
+      accountsData.demo = acc;
+      safeSetText('demoId', acc.id);
+      safeSetText('demoBalance', parseFloat(acc.balance).toFixed(2) + ' ' + acc.currency);
+    } else if (acc.type === 'real') {
+      accountsData.real = acc;
+      safeSetText('realId', acc.id);
+      safeSetText('realBalance', parseFloat(acc.balance).toFixed(2) + ' ' + acc.currency);
+    }
+  });
+  if (!userSelectedAccount) {
+    if (accountsData.demo) { log("ℹ️ Auto-seleccionando Demo", 'info'); selectAccount('demo'); }
+    else if (accountsData.real) { log("ℹ️ Auto-seleccionando Real", 'info'); selectAccount('real'); }
+  }
+}
+
+function selectAccount(type) {
+  const account = accountsData[type];
+  if (!account) { log(`⚠️ No hay cuenta ${type}`, 'error'); return; }
+  userSelectedAccount = true;
+  document.getElementById('btnDemo').classList.toggle('active', type === 'demo');
+  document.getElementById('btnReal').classList.toggle('active', type === 'real');
+  log(`🎯 Cuenta ${type}: ${account.id}`, 'info');
+  if (currentAccountId === account.id) { log("ℹ️ Ya conectado", 'info'); return; }
+  ws.send(JSON.stringify({ type: 'SELECT_ACCOUNT', account_id: account.id }));
 }
 
 function changeSymbol() {
@@ -699,18 +709,15 @@ function subscribeToCandles(preserveCandles = false) {
   }
   const symbol = document.getElementById('symbol').value;
   const granularity = parseInt(document.getElementById('granularity').value);
-  
   if (subscriptionId) {
     ws.send(JSON.stringify({ forget: subscriptionId }));
     subscriptionId = null;
   }
-
   if (!preserveCandles) {
     candles = [];
     updateChart();
     safeSetText('candleCount', '0');
   }
-
   log(`📡 Solicitando: ${symbol} (${granularity}s)`, 'info');
   ws.send(JSON.stringify({
     ticks_history: symbol, adjust_start_time: 1, count: 100, end: 'latest',
@@ -721,11 +728,9 @@ function subscribeToCandles(preserveCandles = false) {
 function startBot() {
   if (emergencyStopped) { log("Recarga la página", 'error'); return; }
   if (candles.length < 50) { log(`⚠️ Faltan datos (${candles.length}/50)`, 'error'); return; }
-  
   botRunning = true;
   lastAnalysisTime = Date.now();
   missedAnalyses = 0;
-  
   document.getElementById('btnStart').disabled = true;
   document.getElementById('btnStop').disabled = false;
   safeSetText('statusBadge', 'Trading');
@@ -734,23 +739,16 @@ function startBot() {
   safeSetClass('diagBot', 'diag-value');
   log(`🤖 Bot iniciado (umbral: ${currentThreshold})`, 'success');
   updateModuleStatus('modAnalysis', true);
-  
   analyzeMarket();
-  
   if (analysisInterval) clearInterval(analysisInterval);
   analysisInterval = setInterval(() => {
     const now = Date.now();
-    if (now - lastAnalysisTime >= ANALYSIS_INTERVAL) {
-      analyzeMarket();
-      lastAnalysisTime = now;
-    }
+    if (now - lastAnalysisTime >= ANALYSIS_INTERVAL) { analyzeMarket(); lastAnalysisTime = now; }
   }, 1000);
-  
   if (visibilityCheckInterval) clearInterval(visibilityCheckInterval);
   visibilityCheckInterval = setInterval(() => {
     const now = Date.now();
     const timeSinceLast = now - lastAnalysisTime;
-    
     if (timeSinceLast > 8000) {
       missedAnalyses++;
       log(`⚡ Catch-up: ${missedAnalyses} análisis perdido(s).`, 'warning');
@@ -776,38 +774,24 @@ function stopBot() {
 
 function analyzeMarket() {
   if (!botRunning) return;
-  if (candles.length < 50) {
-    log(`⚠️ Esperando datos (${candles.length}/50)`, 'info');
-    return;
-  }
-
+  if (candles.length < 50) { log(`⚠️ Esperando datos (${candles.length}/50)`, 'info'); return; }
   try {
     totalAnalyses++;
     safeSetText('diagAnalyses', totalAnalyses);
     safeSetText('diagLastAnalysis', new Date().toLocaleTimeString());
-    
     const strategy = document.getElementById('strategy').value;
     let eval;
-    
     if (strategy === 'AI') {
       const prediction = AIEngine.predict(candles);
       safeSetText('aiPrediction', prediction.direction || '---');
       safeSetText('aiConfidence', prediction.confidence.toFixed(1) + '%');
-      eval = {
-        score: prediction.confidence,
-        reason: prediction.reason,
-        direction: prediction.direction,
-        duration: TA.calculateDuration(candles),
-        indicators: prediction.indicators
-      };
+      eval = { score: prediction.confidence, reason: prediction.reason, direction: prediction.direction, duration: TA.calculateDuration(candles), indicators: prediction.indicators };
     } else {
       eval = StrategyEngine.evaluate(strategy, candles);
     }
-    
     updateScore(eval.score, eval.reason);
     safeSetText('diagScore', eval.score.toFixed(1));
     safeSetText('diagDirection', eval.direction || '---');
-    
     if (eval.indicators) {
       safeSetText('indEMA20', eval.indicators.ema20.toFixed(2));
       safeSetText('indEMA50', eval.indicators.ema50.toFixed(2));
@@ -815,15 +799,12 @@ function analyzeMarket() {
       safeSetText('indBBUpper', eval.indicators.bbUpper.toFixed(2));
       safeSetText('indBBLower', eval.indicators.bbLower.toFixed(2));
       safeSetText('indPrice', eval.indicators.price.toFixed(2));
-      
       updateIndicatorSignal('indEMA20Signal', eval.indicators.ema20 > eval.indicators.ema50 ? 'buy' : 'sell');
       updateIndicatorSignal('indRSISignal', eval.indicators.rsi < 30 ? 'buy' : eval.indicators.rsi > 70 ? 'sell' : 'neutral');
       updateIndicatorSignal('indPriceSignal', eval.direction === 'CALL' ? 'buy' : eval.direction === 'PUT' ? 'sell' : 'neutral');
     }
-    
     const tabIndicator = isTabVisible ? '' : ' [BG]';
     log(`📊 Análisis${tabIndicator}: Score=${eval.score.toFixed(1)} | ${eval.direction || 'N/A'} | ${eval.reason}`, 'debug');
-
     if (eval.score >= currentThreshold && eval.direction) {
       totalSignals++;
       safeSetText('diagSignals', totalSignals);
@@ -840,9 +821,7 @@ function analyzeMarket() {
         log(`⚠️ Señal ignorada: ${riskCheck.reason}`, 'info');
       }
     }
-  } catch (err) {
-    log(`❌ Error en análisis: ${err.message}`, 'error');
-  }
+  } catch (err) { log(`❌ Error en análisis: ${err.message}`, 'error'); }
 }
 
 function updateIndicatorSignal(elementId, signal) {
@@ -853,14 +832,14 @@ function updateIndicatorSignal(elementId, signal) {
   }
 }
 
+// ✅ CORREGIDO: Usa 'underlying_symbol' para API V1
 function executeTrade(direction, duration) {
   const stake = riskState.currentStake;
   const symbol = document.getElementById('symbol').value;
   window.pendingTrade = { direction, duration, stake };
-  
   log(`Solicitando: ${direction} | $${stake.toFixed(2)} | ${duration}t`, 'trade');
   
-  // Formato Legacy API simple
+  // ✅ API V1 requiere 'underlying_symbol' en lugar de 'symbol'
   const proposal = {
     proposal: 1,
     amount: stake,
@@ -869,10 +848,10 @@ function executeTrade(direction, duration) {
     currency: 'USD',
     duration: duration,
     duration_unit: 't',
-    symbol: symbol
+    underlying_symbol: symbol  // ← CAMBIO CLAVE
   };
   
-  log(`📤 Enviando propuesta: ${JSON.stringify(proposal)}`, 'debug');
+  log(`📤 Enviando propuesta (API V1): ${JSON.stringify(proposal)}`, 'debug');
   ws.send(JSON.stringify(proposal));
 }
 
@@ -885,9 +864,7 @@ function updateThreshold(value) {
 
 function updateModuleStatus(moduleId, isWorking) {
   const el = document.getElementById(moduleId);
-  if (el) {
-    el.textContent = isWorking ? '🟢' : '🔴';
-  }
+  if (el) el.textContent = isWorking ? '🟢' : '🔴';
 }
 
 function initChart() {
@@ -923,6 +900,7 @@ function updateScore(score, reason) {
 }
 
 function updateStats() {
+  safeSetText('currentBalance', riskState.currentBalance.toFixed(2));
   const pnlEl = document.getElementById('dailyPnl');
   if (pnlEl) {
     pnlEl.textContent = (riskState.dailyPnl >= 0 ? '+' : '') + riskState.dailyPnl.toFixed(2);
@@ -967,36 +945,21 @@ function log(msg, type = 'info') {
 document.addEventListener('visibilitychange', () => {
   isTabVisible = !document.hidden;
   const tabStatusEl = document.getElementById('tabStatus');
-  
   if (isTabVisible) {
     log("👁️ Pestaña activa", 'info');
-    if (tabStatusEl) {
-      tabStatusEl.textContent = '🟢 Pestaña activa';
-      tabStatusEl.style.color = 'var(--green)';
-    }
+    if (tabStatusEl) { tabStatusEl.textContent = '🟢 Pestaña activa'; tabStatusEl.style.color = 'var(--green)'; }
     updateChart();
-    if (botRunning) {
-      analyzeMarket();
-      lastAnalysisTime = Date.now();
-      missedAnalyses = 0;
-    }
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      log("✅ WebSocket activo", 'success');
-    } else {
-      log("⚠️ WebSocket inactivo. Reconectando...", 'warning');
-      connect();
-    }
+    if (botRunning) { analyzeMarket(); lastAnalysisTime = Date.now(); missedAnalyses = 0; }
+    if (ws && ws.readyState === WebSocket.OPEN) log("✅ WebSocket activo", 'success');
+    else { log("⚠️ WebSocket inactivo. Reconectando...", 'warning'); connect(); }
   } else {
     log("💤 Segundo plano (bot activo)", 'debug');
-    if (tabStatusEl) {
-      tabStatusEl.textContent = '🟡 Segundo plano';
-      tabStatusEl.style.color = 'var(--yellow)';
-    }
+    if (tabStatusEl) { tabStatusEl.textContent = '🟡 Segundo plano'; tabStatusEl.style.color = 'var(--yellow)'; }
   }
 });
 
 window.onload = () => {
-  log("🚀 Sistema iniciado con Ensemble IA (API Legacy)", 'diagnostic');
+  log("🚀 Sistema iniciado con Ensemble IA (API V1 OTP)", 'diagnostic');
   log("🔍 Panel de diagnóstico activo", 'diagnostic');
   log(`🎯 Umbral inicial: ${currentThreshold}`, 'diagnostic');
   initChart();
@@ -1004,7 +967,7 @@ window.onload = () => {
 };
 
 setInterval(() => {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ ping: 1 }));
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'PING' }));
 }, 60000);
 </script>
 </body>
