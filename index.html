@@ -86,23 +86,16 @@
   <div class="grid">
     <div>
       <div class="card">
-        <h3>👛 Cuentas</h3>
-        <div class="account-selector">
-          <button class="account-btn" id="btnDemo" onclick="selectAccount('demo')">
-            <div class="type">Demo</div>
-            <div class="balance" id="demoBalance">---</div>
-            <div class="id" id="demoId">...</div>
-          </button>
-          <button class="account-btn" id="btnReal" onclick="selectAccount('real')">
-            <div class="type">Real</div>
-            <div class="balance" id="realBalance">---</div>
-            <div class="id" id="realId">...</div>
-          </button>
-        </div>
+        <h3>👛 Cuenta</h3>
         <div style="text-align: center; margin-top: 10px;">
           <span id="statusBadge" class="status-badge status-disconnected">Offline</span>
           <div class="connection-info" id="connectionInfo">Esperando...</div>
           <div class="tab-status" id="tabStatus">🟢 Pestaña activa</div>
+        </div>
+        <div style="margin-top: 15px; padding: 10px; background: var(--bg); border-radius: 4px;">
+          <div style="font-size: 10px; color: #8b949e;">Saldo</div>
+          <div style="font-size: 18px; font-weight: bold; color: var(--green);" id="currentBalance">---</div>
+          <div style="font-size: 10px; color: #8b949e; margin-top: 5px;" id="accountId">---</div>
         </div>
       </div>
 
@@ -171,7 +164,6 @@
       <div class="card">
         <h3>📊 Stats</h3>
         <div class="stats-grid">
-          <div class="stat-item"><div class="stat-label">Saldo</div><div class="stat-value" id="currentBalance">---</div></div>
           <div class="stat-item"><div class="stat-label">P&L</div><div class="stat-value" id="dailyPnl">0.00</div></div>
           <div class="stat-item"><div class="stat-label">Trades</div><div class="stat-value" id="tradesCount">0/20</div></div>
           <div class="stat-item"><div class="stat-label">Win Rate</div><div class="stat-value" id="winRate">0%</div></div>
@@ -257,11 +249,9 @@
 <script>
 const SERVER_URL = "wss://deriv-proxy-hwhi.onrender.com";
 let ws = null, chart = null, candles = [], currentAccountId = null;
-let accountsData = { demo: null, real: null };
 let subscriptionId = null, botRunning = false, emergencyStopped = false;
 let analysisInterval = null, reconnectAttempts = 0, maxReconnectAttempts = 10;
-let isReconnecting = false, heartbeatInterval = null, userSelectedAccount = false;
-let keepAliveInterval = null, visibilityCheckInterval = null;
+let isReconnecting = false, heartbeatInterval = null;
 let lastAnalysisTime = 0;
 const ANALYSIS_INTERVAL = 5000;
 let isTabVisible = true;
@@ -526,32 +516,17 @@ function connect() {
   ws = new WebSocket(SERVER_URL);
 
   ws.onopen = () => {
-    log("✅ Conectado al servidor", 'success');
-    safeSetText('statusBadge', 'Conectado');
-    safeSetClass('statusBadge', 'status-badge status-connected');
-    safeSetText('connectionInfo', 'Online');
-    safeSetText('diagWS', 'Conectado');
-    safeSetClass('diagWS', 'diag-value');
-    updateModuleStatus('modConnection', true);
+    log("✅ Conectado al servidor proxy", 'success');
+    safeSetText('statusBadge', 'Conectando a Deriv...');
+    safeSetClass('statusBadge', 'status-badge status-disconnected');
+    safeSetText('connectionInfo', 'Autenticando...');
     reconnectAttempts = 0;
     isReconnecting = false;
     
     if (heartbeatInterval) clearInterval(heartbeatInterval);
     heartbeatInterval = setInterval(() => {
-      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'PING' }));
+      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ ping: 1 }));
     }, 30000);
-    
-    if (keepAliveInterval) clearInterval(keepAliveInterval);
-    keepAliveInterval = setInterval(() => {
-      if (ws && ws.readyState === WebSocket.OPEN && currentAccountId) {
-        ws.send(JSON.stringify({ balance: 1 }));
-      }
-    }, 15000);
-    
-    if (currentAccountId && userSelectedAccount) {
-      log(`🔄 Reconectando a ${currentAccountId}...`, 'info');
-      ws.send(JSON.stringify({ type: 'SELECT_ACCOUNT', account_id: currentAccountId }));
-    }
   };
 
   ws.onmessage = (e) => {
@@ -561,11 +536,8 @@ function connect() {
         // Silencioso
       } else if (data.msg_type) {
         log(`📨 ${data.msg_type}`, 'debug');
-      } else if (data.type) {
-        log(`📨 type:${data.type}`, 'debug');
       }
       
-      if (data.type === 'PING') { ws.send(JSON.stringify({ type: 'PONG' })); return; }
       handleMessage(data);
     } catch (err) { log(`Parse error: ${err.message}`, 'error'); }
   };
@@ -580,22 +552,11 @@ function connect() {
     updateModuleStatus('modConnection', false);
     isReconnecting = false;
     if (heartbeatInterval) clearInterval(heartbeatInterval);
-    if (keepAliveInterval) clearInterval(keepAliveInterval);
     
     if (reconnectAttempts < maxReconnectAttempts) {
       const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts), 30000);
       log(`⏳ Reconectando en ${Math.round(delay/1000)}s...`, 'info');
-      setTimeout(() => {
-        connect();
-        if (userSelectedAccount && currentAccountId) {
-          setTimeout(() => {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-              log("🔄 Re-suscribiendo...", 'info');
-              subscribeToCandles(false);
-            }
-          }, 2000);
-        }
-      }, delay);
+      setTimeout(() => connect(), delay);
     } else {
       log("❌ Máximo intentos. Recarga.", 'error');
       showAlert("❌ Sin conexión. Recarga.");
@@ -606,19 +567,19 @@ function connect() {
 }
 
 function handleMessage(data) {
-  if (data.type === 'ACCOUNTS_LIST') {
-    log(`📋 ${data.accounts.length} cuentas`, 'info');
-    processAccounts(data.accounts);
-    return;
-  }
-
-  if (data.type === 'CONNECTED') {
-    log(`✅ Cuenta: ${data.account_id}`, 'success');
+  // Manejar respuesta de authorize (autenticación Legacy)
+  if (data.msg_type === 'authorize' && data.authorize) {
+    log(`✅ Autenticado como: ${data.authorize.loginid}`, 'success');
     safeSetText('statusBadge', 'Conectado');
     safeSetClass('statusBadge', 'status-badge status-connected');
-    safeSetText('connectionInfo', `Cuenta: ${data.account_id}`);
-    currentAccountId = data.account_id;
+    safeSetText('connectionInfo', `Cuenta: ${data.authorize.loginid}`);
+    safeSetText('accountId', data.authorize.loginid);
+    currentAccountId = data.authorize.loginid;
+    safeSetText('diagWS', 'Conectado');
+    safeSetClass('diagWS', 'diag-value');
+    updateModuleStatus('modConnection', true);
     
+    // Pedir saldo
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
     }
@@ -626,29 +587,13 @@ function handleMessage(data) {
     return;
   }
 
-  if (data.type === 'DISCONNECTED' || data.type === 'ERROR') { 
-    log(`🔌 ${data.message || 'Desconectado'}`, 'error'); return; 
-  }
-
-  if (data.msg_type === 'subscription') {
-    subscriptionId = data.subscription.id;
-    return;
-  }
-
   if (data.msg_type === 'balance') {
     const balance = parseFloat(data.balance.balance);
     const currency = data.balance.currency;
-    const accId = data.balance.loginid;
     
-    if (accountsData.demo && accountsData.demo.id === accId) {
-      accountsData.demo.balance = balance;
-      safeSetText('demoBalance', balance.toFixed(2) + ' ' + currency);
-    } else if (accountsData.real && accountsData.real.id === accId) {
-      accountsData.real.balance = balance;
-      safeSetText('realBalance', balance.toFixed(2) + ' ' + currency);
-    }
+    safeSetText('currentBalance', balance.toFixed(2) + ' ' + currency);
     
-    if (accId === currentAccountId) RiskManager.init(balance);
+    if (currentAccountId) RiskManager.init(balance);
     return;
   }
 
@@ -733,35 +678,6 @@ function handleMessage(data) {
     log(`${isWin ? '✅ GANADA' : '❌ PERDIDA'}: ${profit.toFixed(2)}`, isWin ? 'success' : 'error');
     return;
   }
-}
-
-function processAccounts(accounts) {
-  accounts.forEach(acc => {
-    if (acc.type === 'demo') {
-      accountsData.demo = acc;
-      safeSetText('demoId', acc.id);
-      safeSetText('demoBalance', parseFloat(acc.balance).toFixed(2) + ' ' + acc.currency);
-    } else if (acc.type === 'real') {
-      accountsData.real = acc;
-      safeSetText('realId', acc.id);
-      safeSetText('realBalance', parseFloat(acc.balance).toFixed(2) + ' ' + acc.currency);
-    }
-  });
-  if (!userSelectedAccount) {
-    if (accountsData.demo) { log("ℹ️ Auto-seleccionando Demo", 'info'); selectAccount('demo'); }
-    else if (accountsData.real) { log("ℹ️ Auto-seleccionando Real", 'info'); selectAccount('real'); }
-  }
-}
-
-function selectAccount(type) {
-  const account = accountsData[type];
-  if (!account) { log(`⚠️ No hay cuenta ${type}`, 'error'); return; }
-  userSelectedAccount = true;
-  document.getElementById('btnDemo').classList.toggle('active', type === 'demo');
-  document.getElementById('btnReal').classList.toggle('active', type === 'real');
-  log(`🎯 Cuenta ${type}: ${account.id}`, 'info');
-  if (currentAccountId === account.id) { log("ℹ️ Ya conectado", 'info'); return; }
-  ws.send(JSON.stringify({ type: 'SELECT_ACCOUNT', account_id: account.id }));
 }
 
 function changeSymbol() {
@@ -937,7 +853,6 @@ function updateIndicatorSignal(elementId, signal) {
   }
 }
 
-// ✅ FUNCIÓN CORREGIDA: Usa formato Legacy API
 function executeTrade(direction, duration) {
   const stake = riskState.currentStake;
   const symbol = document.getElementById('symbol').value;
@@ -945,9 +860,7 @@ function executeTrade(direction, duration) {
   
   log(`Solicitando: ${direction} | $${stake.toFixed(2)} | ${duration}t`, 'trade');
   
-  // ✅ CORRECCIÓN: Formato Legacy API (no V1)
-  // La URL privada del OTP es solo para autenticación,
-  // pero las propuestas usan el formato Legacy
+  // Formato Legacy API simple
   const proposal = {
     proposal: 1,
     amount: stake,
@@ -956,11 +869,10 @@ function executeTrade(direction, duration) {
     currency: 'USD',
     duration: duration,
     duration_unit: 't',
-    symbol: symbol  // ← 'symbol' en lugar de 'underlying'
-    // ← SIN 'product_type' ni 'underlying_symbol'
+    symbol: symbol
   };
   
-  log(`📤 Enviando propuesta (Legacy): ${JSON.stringify(proposal)}`, 'debug');
+  log(`📤 Enviando propuesta: ${JSON.stringify(proposal)}`, 'debug');
   ws.send(JSON.stringify(proposal));
 }
 
@@ -1011,7 +923,6 @@ function updateScore(score, reason) {
 }
 
 function updateStats() {
-  safeSetText('currentBalance', riskState.currentBalance.toFixed(2));
   const pnlEl = document.getElementById('dailyPnl');
   if (pnlEl) {
     pnlEl.textContent = (riskState.dailyPnl >= 0 ? '+' : '') + riskState.dailyPnl.toFixed(2);
@@ -1085,7 +996,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 window.onload = () => {
-  log("🚀 Sistema iniciado con Ensemble IA", 'diagnostic');
+  log("🚀 Sistema iniciado con Ensemble IA (API Legacy)", 'diagnostic');
   log("🔍 Panel de diagnóstico activo", 'diagnostic');
   log(`🎯 Umbral inicial: ${currentThreshold}`, 'diagnostic');
   initChart();
@@ -1093,7 +1004,7 @@ window.onload = () => {
 };
 
 setInterval(() => {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'PING' }));
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ ping: 1 }));
 }, 60000);
 </script>
 </body>
