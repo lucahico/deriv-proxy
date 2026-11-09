@@ -328,22 +328,28 @@ const TA = {
     }
     return TA.ema(tr, period);
   },
+  // ✅ CORREGIDO: Devuelve { value, unit } para manejar ticks y minutos
   calculateDuration: (candles) => {
-    if (candles.length < 50) return 5;
+    if (candles.length < 50) return { value: 5, unit: 't' };
     const closes = candles.map(c => c.close);
     const atr = TA.atr(candles.map(c=>c.high), candles.map(c=>c.low), closes, 14);
     const lastATR = atr[atr.length - 1] || 0;
     const lastClose = closes[closes.length - 1];
     const volRatio = lastATR / lastClose;
-    if (volRatio > 0.005) return 1;
-    if (volRatio > 0.002) return 5;
-    return 15;
+    
+    // ✅ API V1 limita ticks a 1-10
+    // Alta volatilidad: 5 ticks
+    if (volRatio > 0.005) return { value: 5, unit: 't' };
+    // Media volatilidad: 10 ticks (máximo permitido)
+    if (volRatio > 0.002) return { value: 10, unit: 't' };
+    // Baja volatilidad: 5 minutos (usar minutos en lugar de ticks)
+    return { value: 5, unit: 'm' };
   }
 };
 
 const StrategyEngine = {
   evaluate: (strategy, candles) => {
-    if (candles.length < 50) return { score: 0, reason: "Datos insuficientes", direction: null, duration: 5 };
+    if (candles.length < 50) return { score: 0, reason: "Datos insuficientes", direction: null, duration: 5, durationUnit: 't' };
     const closes = candles.map(c => c.close);
     const highs = candles.map(c => c.high);
     const lows = candles.map(c => c.low);
@@ -352,14 +358,14 @@ const StrategyEngine = {
     const ema50 = TA.ema(closes, 50);
     const rsi = TA.rsi(closes, 14);
     const bb = TA.bollinger(closes, 20, 2);
-    if (ema20.length === 0 || ema50.length === 0) return { score: 0, reason: "Calculando...", direction: null, duration: 5 };
+    if (ema20.length === 0 || ema50.length === 0) return { score: 0, reason: "Calculando...", direction: null, duration: 5, durationUnit: 't' };
     const lastEma20 = ema20[ema20.length - 1];
     const lastEma50 = ema50[ema50.length - 1];
     const lastRsi = rsi.length > 0 ? rsi[rsi.length - 1] : 50;
     const lastBBUpper = bb.upper[bb.upper.length - 1];
     const lastBBLower = bb.lower[bb.lower.length - 1];
     let score = 0, reasons = [], direction = null;
-    const duration = TA.calculateDuration(candles);
+    const durationObj = TA.calculateDuration(candles);
     if (strategy === 'A') {
       if (lastClose > lastEma20 && lastEma20 > lastEma50 && lastRsi > 50 && lastRsi < 75) { score += 40; reasons.push("Tendencia alcista"); direction = 'CALL'; }
       else if (lastClose < lastEma20 && lastEma20 < lastEma50 && lastRsi < 50 && lastRsi > 25) { score += 40; reasons.push("Tendencia bajista"); direction = 'PUT'; }
@@ -375,14 +381,14 @@ const StrategyEngine = {
     }
     if (Math.abs(lastEma20 - lastEma50) < (lastClose * 0.001)) { score -= 20; reasons.push("Lateral"); }
     score = Math.max(0, Math.min(100, score));
-    return { score, reason: reasons.join(', ') || "Sin señal", direction, duration };
+    return { score, reason: reasons.join(', ') || "Sin señal", direction, duration: durationObj.value, durationUnit: durationObj.unit };
   }
 };
 
 const AIEngine = {
   weights: { ema: 0.3, rsi: 0.25, bb: 0.25, breakout: 0.2 },
   evaluate: (candles) => {
-    if (candles.length < 50) return { score: 0, reason: "Datos insuficientes", direction: null, duration: 5 };
+    if (candles.length < 50) return { score: 0, reason: "Datos insuficientes", direction: null, duration: 5, durationUnit: 't' };
     const closes = candles.map(c => c.close);
     const highs = candles.map(c => c.high);
     const lows = candles.map(c => c.low);
@@ -420,8 +426,8 @@ const AIEngine = {
     if (rsiSignal !== 0) reasons.push(`RSI ${lastRsi.toFixed(0)}`);
     if (bbSignal !== 0) reasons.push(`BB ${bbSignal > 0 ? 'sobreventa' : 'sobrecompra'}`);
     if (breakoutSignal !== 0) reasons.push(`Breakout ${breakoutSignal > 0 ? '▲' : '▼'}`);
-    const duration = TA.calculateDuration(candles);
-    return { score: Math.min(100, score), reason: reasons.join(', ') || 'Sin confluencia', direction, duration, indicators: { ema20: lastEma20, ema50: lastEma50, rsi: lastRsi, bbUpper: lastBBUpper, bbLower: lastBBLower, price: lastClose } };
+    const durationObj = TA.calculateDuration(candles);
+    return { score: Math.min(100, score), reason: reasons.join(', ') || 'Sin confluencia', direction, duration: durationObj.value, durationUnit: durationObj.unit, indicators: { ema20: lastEma20, ema50: lastEma50, rsi: lastRsi, bbUpper: lastBBUpper, bbLower: lastBBLower, price: lastClose } };
   },
   predict: (candles) => {
     const result = AIEngine.evaluate(candles);
@@ -785,7 +791,7 @@ function analyzeMarket() {
       const prediction = AIEngine.predict(candles);
       safeSetText('aiPrediction', prediction.direction || '---');
       safeSetText('aiConfidence', prediction.confidence.toFixed(1) + '%');
-      eval = { score: prediction.confidence, reason: prediction.reason, direction: prediction.direction, duration: TA.calculateDuration(candles), indicators: prediction.indicators };
+      eval = { score: prediction.confidence, reason: prediction.reason, direction: prediction.direction, duration: prediction.duration, durationUnit: prediction.durationUnit, indicators: prediction.indicators };
     } else {
       eval = StrategyEngine.evaluate(strategy, candles);
     }
@@ -804,7 +810,8 @@ function analyzeMarket() {
       updateIndicatorSignal('indPriceSignal', eval.direction === 'CALL' ? 'buy' : eval.direction === 'PUT' ? 'sell' : 'neutral');
     }
     const tabIndicator = isTabVisible ? '' : ' [BG]';
-    log(`📊 Análisis${tabIndicator}: Score=${eval.score.toFixed(1)} | ${eval.direction || 'N/A'} | ${eval.reason}`, 'debug');
+    const durationLabel = eval.durationUnit === 'm' ? `${eval.duration}m` : `${eval.duration}t`;
+    log(`📊 Análisis${tabIndicator}: Score=${eval.score.toFixed(1)} | ${eval.direction || 'N/A'} | Dur: ${durationLabel} | ${eval.reason}`, 'debug');
     if (eval.score >= currentThreshold && eval.direction) {
       totalSignals++;
       safeSetText('diagSignals', totalSignals);
@@ -812,10 +819,10 @@ function analyzeMarket() {
       if (riskCheck.allowed) {
         const mode = document.getElementById('mode').value;
         if (mode === 'sim') {
-          log(`🎯 [SIMULACIÓN] Señal: ${eval.direction} | Score: ${eval.score.toFixed(1)}`, 'signal');
+          log(`🎯 [SIMULACIÓN] Señal: ${eval.direction} | Score: ${eval.score.toFixed(1)} | Dur: ${durationLabel}`, 'signal');
           addTradeToHistory('SIM', eval.direction, 0, `Score: ${eval.score.toFixed(0)}`);
         } else {
-          executeTrade(eval.direction, eval.duration);
+          executeTrade(eval.direction, eval.duration, eval.durationUnit);
         }
       } else {
         log(`⚠️ Señal ignorada: ${riskCheck.reason}`, 'info');
@@ -832,14 +839,16 @@ function updateIndicatorSignal(elementId, signal) {
   }
 }
 
-// ✅ CORREGIDO: Usa 'underlying_symbol' para API V1
-function executeTrade(direction, duration) {
+// ✅ CORREGIDO: Maneja tanto ticks como minutos
+function executeTrade(direction, duration, durationUnit) {
   const stake = riskState.currentStake;
   const symbol = document.getElementById('symbol').value;
-  window.pendingTrade = { direction, duration, stake };
-  log(`Solicitando: ${direction} | $${stake.toFixed(2)} | ${duration}t`, 'trade');
+  window.pendingTrade = { direction, duration, durationUnit, stake };
   
-  // ✅ API V1 requiere 'underlying_symbol' en lugar de 'symbol'
+  const durationLabel = durationUnit === 'm' ? `${duration}m` : `${duration}t`;
+  log(`Solicitando: ${direction} | $${stake.toFixed(2)} | ${durationLabel}`, 'trade');
+  
+  // ✅ API V1: ticks máximo 10, minutos sin límite
   const proposal = {
     proposal: 1,
     amount: stake,
@@ -847,8 +856,8 @@ function executeTrade(direction, duration) {
     contract_type: direction,
     currency: 'USD',
     duration: duration,
-    duration_unit: 't',
-    underlying_symbol: symbol  // ← CAMBIO CLAVE
+    duration_unit: durationUnit,
+    underlying_symbol: symbol
   };
   
   log(`📤 Enviando propuesta (API V1): ${JSON.stringify(proposal)}`, 'debug');
