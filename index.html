@@ -245,6 +245,7 @@ let currentSymbol = 'R_75';
 let currentGranularity = 300;
 let historyReceived = false;
 let historyRequestTimeout = null;
+let lastMessageTime = Date.now();
 
 let riskState = {
   initialBalance: 0, currentBalance: 0, dailyPnl: 0,
@@ -530,7 +531,62 @@ const RiskManager = {
 };
 
 // ==========================================
-// CONEXIÓN Y DATOS (CORREGIDO CON LOGS DETALLADOS)
+// CARGAR HISTÓRICO VÍA REST API
+// ==========================================
+async function loadHistoryREST() {
+  const symbol = document.getElementById('symbol').value;
+  const granularity = parseInt(document.getElementById('granularity').value);
+  
+  log(`📡 Cargando histórico REST de ${symbol}...`, 'info');
+  
+  try {
+    const response = await fetch(`https://ws.derivws.com/websockets/v3?app_id=1089`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ticks_history: symbol,
+        adjust_start_time: 1,
+        count: 100,
+        end: 'latest',
+        style: 'candles',
+        granularity: granularity,
+        subscribe: 0
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.error) {
+      log(`❌ Error REST: ${data.error.message}`, 'error');
+      return;
+    }
+    
+    if (data.history) {
+      const newCandles = data.history.prices.map((p, i) => ({
+        time: data.history.times[i],
+        open: parseFloat(p),
+        high: parseFloat(p),
+        low: parseFloat(p),
+        close: parseFloat(p)
+      }));
+      
+      candles = newCandles;
+      updateChart();
+      log(`✅ Histórico REST cargado: ${candles.length} velas`, 'success');
+      
+      if (candles.length >= 51 && aiState.trainingCount < 3) {
+        setTimeout(() => AIEngine.train(candles), 100);
+      }
+      
+      if (botRunning) analyzeMarket();
+    }
+  } catch (err) {
+    log(`❌ Error cargando histórico: ${err.message}`, 'error');
+  }
+}
+
+// ==========================================
+// CONEXIÓN Y DATOS (CORREGIDO)
 // ==========================================
 function connect() {
   if (isReconnecting) return;
@@ -554,11 +610,20 @@ function connect() {
     reconnectAttempts = 0;
     isReconnecting = false;
     historyReceived = false;
+    lastMessageTime = Date.now();
     
     if (heartbeatInterval) clearInterval(heartbeatInterval);
+    // FIX: Heartbeat cada 15 segundos (más frecuente)
     heartbeatInterval = setInterval(() => {
-      if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'PING' }));
-    }, 30000);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'PING' }));
+        // Verificar si hay actividad reciente
+        const timeSinceLastMessage = Date.now() - lastMessageTime;
+        if (timeSinceLastMessage > 60000) {
+          log(`⚠️ Sin actividad por ${Math.round(timeSinceLastMessage/1000)}s. Enviando heartbeat...`, 'info');
+        }
+      }
+    }, 15000);
     
     if (currentAccountId && userSelectedAccount) {
       log(`🔄 Reconectando a cuenta ${currentAccountId}...`, 'info');
@@ -568,9 +633,9 @@ function connect() {
 
   ws.onmessage = (e) => {
     try {
+      lastMessageTime = Date.now();
       const data = JSON.parse(e.data);
       
-      // FIX: Log detallado de todos los mensajes para debug
       if (data.msg_type) {
         log(`📨 Recibido: ${data.msg_type}`, 'debug');
       }
@@ -580,8 +645,8 @@ function connect() {
     } catch (err) { log(`Error parseando: ${err.message}`, 'error'); }
   };
 
-  ws.onclose = () => {
-    log("🔌 Conexión cerrada", 'error');
+  ws.onclose = (event) => {
+    log(`🔌 Conexión cerrada (Código: ${event.code}, Razón: ${event.reason || 'N/A'})`, 'error');
     document.getElementById('statusBadge').textContent = 'Desconectado';
     document.getElementById('statusBadge').className = 'status-badge status-disconnected';
     document.getElementById('connectionInfo').textContent = 'Desconectado';
@@ -596,7 +661,6 @@ function connect() {
       log(`⏳ Reconectando en ${Math.round(delay/1000)}s...`, 'info');
       setTimeout(() => {
         connect();
-        // FIX: Re-suscribir automáticamente tras reconexión
         if (shouldResubscribe && userSelectedAccount && currentAccountId) {
           setTimeout(() => {
             if (ws && ws.readyState === WebSocket.OPEN) {
@@ -613,7 +677,9 @@ function connect() {
     }
   };
 
-  ws.onerror = () => { log("❌ Error de conexión", 'error'); };
+  ws.onerror = (error) => { 
+    log(`❌ Error de conexión: ${error.message || 'Desconocido'}`, 'error'); 
+  };
 }
 
 function handleMessage(data) {
@@ -631,17 +697,15 @@ function handleMessage(data) {
     currentAccountId = data.account_id;
     requestBalance();
     
-    // FIX: Solicitar histórico con timeout
     historyReceived = false;
     subscribeToCandles(true);
     
-    // Timeout para re-solicitar si no llega el histórico
     historyRequestTimeout = setTimeout(() => {
       if (!historyReceived && candles.length < 50) {
-        log("⚠️ Histórico no recibido. Re-solicitando...", 'error');
-        subscribeToCandles(false);
+        log("⚠️ Histórico no recibido. Cargando por REST...", 'info');
+        loadHistoryREST();
       }
-    }, 10000);
+    }, 5000);
     
     return;
   }
@@ -674,7 +738,6 @@ function handleMessage(data) {
     return;
   }
 
-  // FIX: Manejar histórico correctamente
   if (data.msg_type === 'history') {
     historyReceived = true;
     if (historyRequestTimeout) clearTimeout(historyRequestTimeout);
@@ -839,6 +902,14 @@ function subscribeToCandles(preserveCandles = false) {
     ticks_history: symbol, adjust_start_time: 1, count: 100, end: 'latest',
     style: 'candles', granularity: granularity, subscribe: 1
   }));
+
+  // FIX: Cargar histórico por REST como respaldo
+  setTimeout(() => {
+    if (candles.length < 50) {
+      log(`⚠️ WebSocket no envió histórico. Cargando por REST...`, 'info');
+      loadHistoryREST();
+    }
+  }, 3000);
 
   document.getElementById('chartSymbol').textContent = symbol;
 }
@@ -1039,6 +1110,7 @@ window.onload = () => {
   log("🚀 Sistema iniciado con IA LSTM.", 'info');
 };
 
+// Heartbeat para mantener Render despierto
 setInterval(() => {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'PING' }));
