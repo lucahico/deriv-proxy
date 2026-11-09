@@ -7,45 +7,33 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
 <style>
-  :root { 
-    --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; 
-    --green: #2ea043; --red: #da3633; --blue: #58a6ff; --yellow: #d29922; --purple: #a371f7;
-  }
+  :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --green: #2ea043; --red: #da3633; --blue: #58a6ff; --yellow: #d29922; --purple: #a371f7; }
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
   body { background: var(--bg); color: var(--text); padding: 15px; font-size: 13px; }
   .container { max-width: 1600px; margin: 0 auto; }
   .grid { display: grid; grid-template-columns: 300px 1fr 320px; gap: 15px; }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; margin-bottom: 15px; }
   .card h3 { color: var(--blue); margin-bottom: 10px; font-size: 14px; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
-  
   .account-selector { display: flex; gap: 10px; margin-bottom: 10px; }
-  .account-btn { flex: 1; padding: 10px; border: 2px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); cursor: pointer; transition: 0.2s; }
-  .account-btn:hover { border-color: var(--blue); }
+  .account-btn { flex: 1; padding: 10px; border: 2px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); cursor: pointer; }
   .account-btn.active { border-color: var(--green); background: #1a4d2e; }
   .account-btn .type { font-size: 10px; color: #8b949e; text-transform: uppercase; }
   .account-btn .balance { font-size: 16px; font-weight: bold; color: var(--green); margin-top: 3px; }
   .account-btn .id { font-size: 10px; color: #8b949e; margin-top: 2px; }
-
   .form-group { margin-bottom: 10px; }
   .form-group label { display: block; color: #8b949e; margin-bottom: 3px; font-size: 11px; }
   select, input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: 6px; border-radius: 4px; }
-  
-  .btn { width: 100%; padding: 10px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 5px; transition: 0.2s; }
+  .btn { width: 100%; padding: 10px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 5px; }
   .btn-primary { background: var(--green); color: white; }
-  .btn-primary:hover { background: #26a641; }
   .btn-danger { background: var(--red); color: white; }
-  .btn-danger:hover { background: #b62d2a; }
   .btn:disabled { background: var(--border); color: #8b949e; cursor: not-allowed; }
-
   .score-display { text-align: center; padding: 15px; border-radius: 6px; background: var(--bg); margin: 10px 0; }
   .score-val { font-size: 32px; font-weight: bold; }
   .score-high { color: var(--green); }
   .score-med { color: var(--yellow); }
   .score-low { color: var(--red); }
   .score-reason { font-size: 11px; margin-top: 5px; color: #8b949e; }
-
   .chart-container { position: relative; height: 400px; width: 100%; }
-  
   .log-container { height: 250px; overflow-y: auto; background: #010409; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 11px; }
   .log-entry { margin-bottom: 3px; padding-left: 5px; border-left: 2px solid var(--border); }
   .log-info { border-color: var(--blue); color: var(--blue); }
@@ -53,28 +41,20 @@
   .log-error { border-color: var(--red); color: var(--red); }
   .log-trade { border-color: var(--yellow); color: var(--yellow); }
   .log-signal { border-color: var(--purple); color: var(--purple); }
-  .log-ai { border-color: #00ffff; color: #00ffff; }
   .log-debug { border-color: #8b949e; color: #8b949e; }
-
+  .log-critical { border-color: #ff00ff; color: #ff00ff; font-weight: bold; }
   .status-badge { display: inline-block; padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: bold; }
   .status-connected { background: #1a4d2e; color: var(--green); }
   .status-disconnected { background: #4d1a1a; color: var(--red); }
   .status-trading { background: #1a4d2e; color: var(--green); animation: pulse 2s infinite; }
-  .status-reconnecting { background: #d29922; color: #000; animation: pulse 1s infinite; }
-
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-
   .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .stat-item { background: var(--bg); padding: 8px; border-radius: 4px; }
   .stat-label { font-size: 10px; color: #8b949e; }
   .stat-value { font-size: 14px; font-weight: bold; color: var(--green); }
   .stat-value.red { color: var(--red); }
-
   .trade-list { max-height: 200px; overflow-y: auto; }
   .trade-item { display: flex; justify-content: space-between; padding: 6px; border-bottom: 1px solid var(--border); font-size: 11px; }
-  .win { color: var(--green); } 
-  .loss { color: var(--red); }
-
   .alert-banner { background: var(--yellow); color: #000; padding: 10px; border-radius: 6px; margin-bottom: 10px; font-weight: bold; display: none; }
   .strategy-info { background: var(--bg); padding: 10px; border-radius: 4px; margin-top: 10px; font-size: 11px; border-left: 3px solid var(--purple); }
   .connection-info { font-size: 10px; color: #8b949e; margin-top: 5px; text-align: center; }
@@ -88,7 +68,6 @@
 
 <div class="container">
   <div id="alertBanner" class="alert-banner"></div>
-  
   <div class="grid">
     <div>
       <div class="card">
@@ -107,33 +86,30 @@
         </div>
         <div style="text-align: center; margin-top: 10px;">
           <span id="statusBadge" class="status-badge status-disconnected">Desconectado</span>
-          <div class="connection-info" id="connectionInfo">Esperando conexión...</div>
+          <div class="connection-info" id="connectionInfo">Esperando...</div>
         </div>
       </div>
 
       <div class="card">
-        <h3>⚙️ Estrategia de Trading</h3>
+        <h3>⚙️ Estrategia</h3>
         <div class="form-group">
           <label>Estrategia</label>
           <select id="strategy" onchange="updateStrategyInfo()">
-            <option value="A">A - Tendencia con Confirmación</option>
-            <option value="B">B - Reversión a la Media</option>
-            <option value="C">C - Breakout de Rango</option>
-            <option value="AI" selected>🤖 IA + LSTM (Recomendado)</option>
+            <option value="A">A - Tendencia</option>
+            <option value="B">B - Reversión</option>
+            <option value="C">C - Breakout</option>
+            <option value="AI" selected>🤖 IA + LSTM</option>
           </select>
         </div>
-        <div class="strategy-info" id="strategyInfo">
-          <strong>IA LSTM:</strong> Red neuronal que aprende patrones y predice movimientos
-        </div>
-        
+        <div class="strategy-info" id="strategyInfo"><strong>IA LSTM:</strong> Red neuronal predictiva</div>
         <div class="form-group" style="margin-top: 10px;">
           <label>Activo</label>
           <select id="symbol" onchange="changeSymbol()">
-            <option value="R_10">Volatility 10 Index</option>
-            <option value="R_25">Volatility 25 Index</option>
-            <option value="R_50">Volatility 50 Index</option>
-            <option value="R_75" selected>Volatility 75 Index</option>
-            <option value="R_100">Volatility 100 Index</option>
+            <option value="R_10">Volatility 10</option>
+            <option value="R_25">Volatility 25</option>
+            <option value="R_50">Volatility 50</option>
+            <option value="R_75" selected>Volatility 75</option>
+            <option value="R_100">Volatility 100</option>
             <option value="1HZ100V">Volatility 100 (1s)</option>
           </select>
         </div>
@@ -152,10 +128,10 @@
       <div class="card">
         <h3>🤖 Control del Bot</h3>
         <div class="form-group">
-          <label>Modo de Operación</label>
+          <label>Modo</label>
           <select id="mode">
-            <option value="sim">Simulación (Solo Señales)</option>
-            <option value="live">Trading Automático (Real/Demo)</option>
+            <option value="sim">Simulación</option>
+            <option value="live">Trading Real</option>
           </select>
         </div>
         <div class="form-group">
@@ -163,11 +139,11 @@
           <input type="number" id="stake" value="0.35" min="0.35" step="0.01">
         </div>
         <button id="btnStart" class="btn btn-primary" onclick="startBot()">▶ INICIAR BOT</button>
-        <button id="btnStop" class="btn btn-danger" onclick="stopBot()" disabled>🛑 DETENER TODO</button>
+        <button id="btnStop" class="btn btn-danger" onclick="stopBot()" disabled>🛑 DETENER</button>
       </div>
 
       <div class="card">
-        <h3>🧠 Estado de la IA</h3>
+        <h3>🧠 Estado IA</h3>
         <div class="ai-status">
           <div class="ai-prediction"><span class="label">Modelo:</span><span class="value" id="aiModelStatus">No entrenado</span></div>
           <div class="ai-prediction"><span class="label">Predicción:</span><span class="value" id="aiPrediction">---</span></div>
@@ -177,74 +153,54 @@
       </div>
 
       <div class="card">
-        <h3>📊 Estadísticas del Día</h3>
+        <h3>📊 Estadísticas</h3>
         <div class="stats-grid">
-          <div class="stat-item"><div class="stat-label">Saldo Actual</div><div class="stat-value" id="currentBalance">---</div></div>
-          <div class="stat-item"><div class="stat-label">P&L Diario</div><div class="stat-value" id="dailyPnl">0.00</div></div>
+          <div class="stat-item"><div class="stat-label">Saldo</div><div class="stat-value" id="currentBalance">---</div></div>
+          <div class="stat-item"><div class="stat-label">P&L</div><div class="stat-value" id="dailyPnl">0.00</div></div>
           <div class="stat-item"><div class="stat-label">Trades</div><div class="stat-value" id="tradesCount">0/20</div></div>
           <div class="stat-item"><div class="stat-label">Win Rate</div><div class="stat-value" id="winRate">0%</div></div>
-          <div class="stat-item"><div class="stat-label">Racha Pérdidas</div><div class="stat-value red" id="lossStreak">0</div></div>
-          <div class="stat-item"><div class="stat-label">Próximo Stake</div><div class="stat-value" id="nextStake">0.35</div></div>
+          <div class="stat-item"><div class="stat-label">Racha</div><div class="stat-value red" id="lossStreak">0</div></div>
+          <div class="stat-item"><div class="stat-label">Stake</div><div class="stat-value" id="nextStake">0.35</div></div>
         </div>
       </div>
     </div>
 
     <div>
       <div class="card">
-        <h3>📈 Gráfico en Tiempo Real - <span id="chartSymbol">R_75</span></h3>
+        <h3>📈 Gráfico - <span id="chartSymbol">R_75</span></h3>
         <div class="score-display">
-          <div style="font-size: 11px; color: #8b949e;">SCORE DE OPORTUNIDAD</div>
+          <div style="font-size: 11px; color: #8b949e;">SCORE</div>
           <div class="score-val score-low" id="oppScore">0</div>
-          <div class="score-reason" id="oppReason">Esperando datos de mercado...</div>
+          <div class="score-reason" id="oppReason">Esperando...</div>
         </div>
         <div class="chart-container"><canvas id="mainChart"></canvas></div>
       </div>
-
       <div class="card">
-        <h3>📋 Operaciones Recientes</h3>
-        <div class="trade-list" id="tradeList">
-          <div style="text-align: center; color: #8b949e; padding: 10px;">Sin operaciones aún</div>
-        </div>
+        <h3>📋 Operaciones</h3>
+        <div class="trade-list" id="tradeList"><div style="text-align: center; color: #8b949e; padding: 10px;">Sin operaciones</div></div>
       </div>
     </div>
 
     <div>
       <div class="card">
-        <h3>📝 Registro del Sistema</h3>
+        <h3>📝 Registro</h3>
         <div class="log-container" id="logContainer"></div>
       </div>
-
       <div class="card">
-        <h3>⚠️ Alertas y Avisos</h3>
-        <div id="alertsList" style="font-size: 11px; color: #8b949e;">Sin alertas activas</div>
+        <h3>⚠️ Alertas</h3>
+        <div id="alertsList" style="font-size: 11px; color: #8b949e;">Sin alertas</div>
       </div>
     </div>
   </div>
 </div>
 
 <script>
-// ==========================================
-// CONFIGURACIÓN Y ESTADO GLOBAL
-// ==========================================
 const SERVER_URL = "wss://deriv-proxy-hwhi.onrender.com";
-let ws = null;
-let chart = null;
-let candles = [];
-let currentAccountId = null;
+let ws = null, chart = null, candles = [], currentAccountId = null;
 let accountsData = { demo: null, real: null };
-let subscriptionId = null;
-let botRunning = false;
-let emergencyStopped = false;
-let analysisInterval = null;
-let reconnectAttempts = 0;
-let maxReconnectAttempts = 10;
-let isReconnecting = false;
-let heartbeatInterval = null;
-let userSelectedAccount = false;
-let currentSymbol = 'R_75';
-let currentGranularity = 300;
-let historyReceived = false;
-let historyRequestTimeout = null;
+let subscriptionId = null, botRunning = false, emergencyStopped = false;
+let analysisInterval = null, reconnectAttempts = 0, maxReconnectAttempts = 10;
+let isReconnecting = false, heartbeatInterval = null, userSelectedAccount = false;
 let lastMessageTime = Date.now();
 
 let riskState = {
@@ -255,7 +211,7 @@ let riskState = {
   maxDailyLossPct: 0.05, maxDailyTrades: 20, maxLossStreak: 3
 };
 
-let aiState = { model: null, isTraining: false, trainingCount: 0, lastPrediction: null, confidence: 0 };
+let aiState = { model: null, isTraining: false, trainingCount: 0 };
 
 // ==========================================
 // ANÁLISIS TÉCNICO
@@ -299,19 +255,14 @@ const TA = {
     if (closes.length < period + 1) return [];
     let tr = [highs[0] - lows[0]];
     for (let i = 1; i < closes.length; i++) {
-      const h_l = highs[i] - lows[i];
-      const h_c = Math.abs(highs[i] - closes[i - 1]);
-      const l_c = Math.abs(lows[i] - closes[i - 1]);
-      tr.push(Math.max(h_l, h_c, l_c));
+      tr.push(Math.max(highs[i] - lows[i], Math.abs(highs[i] - closes[i - 1]), Math.abs(lows[i] - closes[i - 1])));
     }
     return TA.ema(tr, period);
   },
   calculateDuration: (candles) => {
     if (candles.length < 50) return 5;
     const closes = candles.map(c => c.close);
-    const highs = candles.map(c => c.high);
-    const lows = candles.map(c => c.low);
-    const atr = TA.atr(highs, lows, closes, 14);
+    const atr = TA.atr(candles.map(c=>c.high), candles.map(c=>c.low), closes, 14);
     const lastATR = atr[atr.length - 1] || 0;
     const lastClose = closes[closes.length - 1];
     const volRatio = lastATR / lastClose;
@@ -322,11 +273,11 @@ const TA = {
 };
 
 // ==========================================
-// MOTOR DE ESTRATEGIAS TRADICIONALES
+// ESTRATEGIAS
 // ==========================================
 const StrategyEngine = {
   evaluate: (strategy, candles) => {
-    if (candles.length < 50) return { score: 0, reason: "Acumulando datos...", direction: null, duration: 5 };
+    if (candles.length < 50) return { score: 0, reason: "Datos insuficientes", direction: null, duration: 5 };
     const closes = candles.map(c => c.close);
     const highs = candles.map(c => c.high);
     const lows = candles.map(c => c.low);
@@ -335,44 +286,35 @@ const StrategyEngine = {
     const ema50 = TA.ema(closes, 50);
     const rsi = TA.rsi(closes, 14);
     const bb = TA.bollinger(closes, 20, 2);
-    
-    if (ema20.length === 0 || ema50.length === 0) {
-      return { score: 0, reason: "Indicadores no listos", direction: null, duration: 5 };
-    }
-    
+    if (ema20.length === 0 || ema50.length === 0) return { score: 0, reason: "Indicadores calculando...", direction: null, duration: 5 };
     const lastEma20 = ema20[ema20.length - 1];
     const lastEma50 = ema50[ema50.length - 1];
     const lastRsi = rsi.length > 0 ? rsi[rsi.length - 1] : 50;
-    const lastBBUpper = bb.upper.length > 0 ? bb.upper[bb.upper.length - 1] : lastClose;
-    const lastBBLower = bb.lower.length > 0 ? bb.lower[bb.lower.length - 1] : lastClose;
-    
+    const lastBBUpper = bb.upper[bb.upper.length - 1];
+    const lastBBLower = bb.lower[bb.lower.length - 1];
     let score = 0, reasons = [], direction = null;
     const duration = TA.calculateDuration(candles);
-
     if (strategy === 'A') {
-      if (lastClose > lastEma20 && lastEma20 > lastEma50 && lastRsi > 50 && lastRsi < 75) {
-        score += 40; reasons.push("Tendencia alcista (EMA20>EMA50)"); direction = 'CALL';
-      } else if (lastClose < lastEma20 && lastEma20 < lastEma50 && lastRsi < 50 && lastRsi > 25) {
-        score += 40; reasons.push("Tendencia bajista (EMA20<EMA50)"); direction = 'PUT';
-      }
-      if (lastRsi > 40 && lastRsi < 60) { score += 30; reasons.push("RSI en zona neutral"); }
+      if (lastClose > lastEma20 && lastEma20 > lastEma50 && lastRsi > 50 && lastRsi < 75) { score += 40; reasons.push("Tendencia alcista"); direction = 'CALL'; }
+      else if (lastClose < lastEma20 && lastEma20 < lastEma50 && lastRsi < 50 && lastRsi > 25) { score += 40; reasons.push("Tendencia bajista"); direction = 'PUT'; }
+      if (lastRsi > 40 && lastRsi < 60) { score += 30; reasons.push("RSI neutral"); }
     } else if (strategy === 'B') {
-      if (lastClose <= lastBBLower && lastRsi < 30) { score += 50; reasons.push("Precio en Banda Inferior + RSI Sobreventa"); direction = 'CALL'; }
-      else if (lastClose >= lastBBUpper && lastRsi > 70) { score += 50; reasons.push("Precio en Banda Superior + RSI Sobrecompra"); direction = 'PUT'; }
+      if (lastClose <= lastBBLower && lastRsi < 30) { score += 50; reasons.push("Banda inferior + RSI bajo"); direction = 'CALL'; }
+      else if (lastClose >= lastBBUpper && lastRsi > 70) { score += 50; reasons.push("Banda superior + RSI alto"); direction = 'PUT'; }
     } else if (strategy === 'C') {
       const highest20 = Math.max(...highs.slice(-20));
       const lowest20 = Math.min(...lows.slice(-20));
-      if (lastClose > highest20) { score += 45; reasons.push("Ruptura alcista de máximo 20 velas"); direction = 'CALL'; }
-      else if (lastClose < lowest20) { score += 45; reasons.push("Ruptura bajista de mínimo 20 velas"); direction = 'PUT'; }
+      if (lastClose > highest20) { score += 45; reasons.push("Ruptura alcista"); direction = 'CALL'; }
+      else if (lastClose < lowest20) { score += 45; reasons.push("Ruptura bajista"); direction = 'PUT'; }
     }
-    if (Math.abs(lastEma20 - lastEma50) < (lastClose * 0.001)) { score -= 20; reasons.push("Mercado lateral (penalización)"); }
+    if (Math.abs(lastEma20 - lastEma50) < (lastClose * 0.001)) { score -= 20; reasons.push("Mercado lateral"); }
     score = Math.max(0, Math.min(100, score));
-    return { score, reason: reasons.join(', ') || "Sin confluencia", direction, duration };
+    return { score, reason: reasons.join(', ') || "Sin señal", direction, duration };
   }
 };
 
 // ==========================================
-// MOTOR DE IA CON LSTM
+// IA LSTM
 // ==========================================
 const AIEngine = {
   createModel: () => {
@@ -380,15 +322,14 @@ const AIEngine = {
     model.add(tf.layers.lstm({ units: 32, inputShape: [50, 3], returnSequences: false }));
     model.add(tf.layers.dense({ units: 16, activation: 'relu' }));
     model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
-    model.compile({ optimizer: tf.train.adam(0.001), loss: 'binaryCrossentropy', metrics: ['accuracy'] });
+    model.compile({ optimizer: tf.train.adam(0.001), loss: 'binaryCrossentropy' });
     return model;
   },
   prepareData: (candles) => {
     if (candles.length < 51) return null;
     const features = [], labels = [];
     const prices = candles.map(c => c.close);
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
+    const minPrice = Math.min(...prices), maxPrice = Math.max(...prices);
     const range = maxPrice - minPrice || 1;
     const normalized = prices.map(p => (p - minPrice) / range);
     for (let i = 0; i < normalized.length - 50; i++) {
@@ -401,9 +342,7 @@ const AIEngine = {
         sequence.push([priceNorm, change, volatility]);
       }
       features.push(sequence);
-      const futurePrice = candles[i + 50].close;
-      const currentPrice = candles[i + 49].close;
-      labels.push(futurePrice > currentPrice ? 1 : 0);
+      labels.push(candles[i + 50].close > candles[i + 49].close ? 1 : 0);
     }
     if (features.length === 0) return null;
     return { features: tf.tensor3d(features), labels: tf.tensor2d(labels, [labels.length, 1]) };
@@ -411,40 +350,32 @@ const AIEngine = {
   train: async (candles) => {
     if (aiState.isTraining) return;
     const data = AIEngine.prepareData(candles);
-    if (!data) { log("IA: Necesito más datos (mínimo 51 velas)", 'ai'); return; }
-    
+    if (!data) { log("IA: Necesito más datos", 'ai'); return; }
     aiState.isTraining = true;
-    log("🧠 IA: Iniciando entrenamiento...", 'ai');
+    log("🧠 IA: Entrenando...", 'ai');
     document.getElementById('aiModelStatus').textContent = 'Entrenando...';
-    
     try {
       if (!aiState.model) aiState.model = AIEngine.createModel();
-      
       const epochs = aiState.trainingCount === 0 ? 3 : 5;
-      
       await aiState.model.fit(data.features, data.labels, {
-        epochs: epochs,
-        batchSize: 32,
-        shuffle: true,
+        epochs: epochs, batchSize: 32, shuffle: true,
         callbacks: {
           onEpochEnd: async (epoch, logs) => {
             log(`IA: Época ${epoch + 1}/${epochs} - Loss: ${logs.loss.toFixed(4)}`, 'ai');
-            await new Promise(resolve => setTimeout(resolve, 50));
+            await new Promise(r => setTimeout(r, 50));
             await tf.nextFrame();
           }
         }
       });
-      
       aiState.trainingCount++;
       document.getElementById('aiModelStatus').textContent = `Entrenado (${aiState.trainingCount}x)`;
       document.getElementById('aiTrainings').textContent = aiState.trainingCount;
-      log(`✅ IA entrenada. Entrenamientos: ${aiState.trainingCount}`, 'ai');
+      log(`✅ IA entrenada (${aiState.trainingCount}x)`, 'ai');
     } catch (error) {
       log(`❌ IA Error: ${error.message}`, 'error');
     } finally {
       aiState.isTraining = false;
-      data.features.dispose();
-      data.labels.dispose();
+      data.features.dispose(); data.labels.dispose();
     }
   },
   predict: (candles) => {
@@ -459,20 +390,16 @@ const AIEngine = {
     const sequence = [];
     for (let i = 0; i < 50; i++) {
       const candle = candles[candles.length - 50 + i];
-      const priceNorm = normalized[i];
       const prevCandle = i > 0 ? candles[candles.length - 50 + i - 1] : candle;
-      const change = (candle.close - prevCandle.close) / prevCandle.close;
-      const volatility = Math.abs(candle.high - candle.low) / candle.close;
-      sequence.push([priceNorm, change, volatility]);
+      sequence.push([normalized[i], (candle.close - prevCandle.close) / prevCandle.close, Math.abs(candle.high - candle.low) / candle.close]);
     }
     const input = tf.tensor3d([sequence]);
     const prediction = aiState.model.predict(input);
     const value = prediction.dataSync()[0];
-    input.dispose();
-    prediction.dispose();
+    input.dispose(); prediction.dispose();
     const confidence = Math.abs(value - 0.5) * 200;
     const direction = value > 0.5 ? 'CALL' : 'PUT';
-    return { direction, confidence, reason: `IA predice ${direction} con ${confidence.toFixed(1)}% confianza` };
+    return { direction, confidence, reason: `IA: ${direction} (${confidence.toFixed(1)}%)` };
   }
 };
 
@@ -486,58 +413,47 @@ const RiskManager = {
       riskState.currentBalance = riskState.initialBalance;
       riskState.baseStake = Math.max(0.35, riskState.initialBalance * 0.01);
       riskState.currentStake = riskState.baseStake;
-      log(`🎯 Riesgo inicializado. Balance: $${riskState.initialBalance.toFixed(2)} | Stake: $${riskState.baseStake.toFixed(2)}`, 'info');
+      log(`🎯 Riesgo: $${riskState.initialBalance.toFixed(2)} | Stake: $${riskState.baseStake.toFixed(2)}`, 'info');
     }
     riskState.currentBalance = parseFloat(balance);
     riskState.dailyPnl = riskState.currentBalance - riskState.initialBalance;
     updateStats();
   },
-  updateBalance: (newBalance) => {
-    riskState.currentBalance = parseFloat(newBalance);
-    riskState.dailyPnl = riskState.currentBalance - riskState.initialBalance;
-    updateStats();
-  },
   canTrade: () => {
-    if (emergencyStopped) return { allowed: false, reason: "Parada de emergencia" };
-    if (riskState.tradesToday >= riskState.maxDailyTrades) return { allowed: false, reason: "Límite de 20 trades alcanzado" };
-    if (riskState.dailyPnl <= -(riskState.initialBalance * riskState.maxDailyLossPct)) return { allowed: false, reason: "Stop Loss diario (5%) alcanzado" };
-    if (riskState.dailyPnl >= (riskState.initialBalance * 0.10)) return { allowed: false, reason: "Take Profit diario (10%) alcanzado" };
+    if (emergencyStopped) return { allowed: false, reason: "Parada emergencia" };
+    if (riskState.tradesToday >= riskState.maxDailyTrades) return { allowed: false, reason: "Límite 20 trades" };
+    if (riskState.dailyPnl <= -(riskState.initialBalance * riskState.maxDailyLossPct)) return { allowed: false, reason: "Stop Loss 5%" };
+    if (riskState.dailyPnl >= (riskState.initialBalance * 0.10)) return { allowed: false, reason: "Take Profit 10%" };
     if (riskState.isPaused && Date.now() < riskState.pauseEndTime) {
-      const minsLeft = Math.ceil((riskState.pauseEndTime - Date.now()) / 60000);
-      return { allowed: false, reason: `Pausa por racha. Quedan ${minsLeft} min` };
-    } else if (riskState.isPaused && Date.now() >= riskState.pauseEndTime) {
-      riskState.isPaused = false;
-      log("Pausa finalizada. Reanudando.", 'info');
-    }
+      const mins = Math.ceil((riskState.pauseEndTime - Date.now()) / 60000);
+      return { allowed: false, reason: `Pausa ${mins}min` };
+    } else if (riskState.isPaused) { riskState.isPaused = false; log("Pausa finalizada", 'info'); }
     return { allowed: true, reason: "OK" };
   },
   recordTrade: (isWin) => {
     riskState.tradesToday++;
-    if (isWin) {
-      riskState.wins++; riskState.lossStreak = 0; riskState.currentStake = riskState.baseStake;
-    } else {
+    if (isWin) { riskState.wins++; riskState.lossStreak = 0; riskState.currentStake = riskState.baseStake; }
+    else {
       riskState.losses++; riskState.lossStreak++;
       if (riskState.lossStreak >= riskState.maxLossStreak) {
         riskState.isPaused = true;
         riskState.pauseEndTime = Date.now() + 15 * 60 * 1000;
-        showAlert(`⚠️ Racha de ${riskState.lossStreak} pérdidas. Pausa 15 min.`);
-        log(`Pausa: ${riskState.lossStreak} pérdidas consecutivas`, 'error');
+        showAlert(`⚠️ ${riskState.lossStreak} pérdidas. Pausa 15min.`);
       }
-      if (riskState.lossStreak <= 2) riskState.currentStake = riskState.baseStake * Math.pow(2, riskState.lossStreak);
-      else riskState.currentStake = riskState.baseStake;
+      riskState.currentStake = riskState.lossStreak <= 2 ? riskState.baseStake * Math.pow(2, riskState.lossStreak) : riskState.baseStake;
     }
     updateStats();
   }
 };
 
 // ==========================================
-// CARGAR HISTÓRICO VÍA REST API
+// CARGAR HISTÓRICO POR REST (SIEMPRE FUNCIONA)
 // ==========================================
-async function loadHistoryREST() {
+async function loadHistoryREST(forceReplace = true) {
   const symbol = document.getElementById('symbol').value;
   const granularity = parseInt(document.getElementById('granularity').value);
   
-  log(`📡 Cargando histórico REST de ${symbol}...`, 'info');
+  log(`📡 Cargando histórico REST: ${symbol} (${granularity}s)...`, 'critical');
   
   try {
     const response = await fetch(`https://ws.derivws.com/websockets/v3?app_id=1089`, {
@@ -557,36 +473,49 @@ async function loadHistoryREST() {
     const data = await response.json();
     
     if (data.error) {
-      log(`❌ Error REST: ${data.error.message}`, 'error');
-      return;
+      log(`❌ REST Error: ${data.error.message}`, 'critical');
+      return false;
     }
     
-    if (data.history) {
+    if (data.history && data.history.prices) {
       const newCandles = data.history.prices.map((p, i) => ({
         time: data.history.times[i],
-        open: parseFloat(p),
-        high: parseFloat(p),
-        low: parseFloat(p),
-        close: parseFloat(p)
+        open: parseFloat(p), high: parseFloat(p), low: parseFloat(p), close: parseFloat(p)
       }));
       
-      candles = newCandles;
+      if (forceReplace) {
+        candles = newCandles;
+      } else {
+        const existingTimes = new Set(candles.map(c => c.time));
+        newCandles.forEach(c => { if (!existingTimes.has(c.time)) candles.push(c); });
+        candles.sort((a, b) => a.time - b.time);
+      }
+      
+      if (candles.length > 100) candles = candles.slice(-100);
+      
       updateChart();
-      log(`✅ Histórico REST cargado: ${candles.length} velas`, 'success');
+      log(`✅ HISTÓRICO CARGADO: ${candles.length} velas`, 'critical');
+      log(`📊 Primera vela: ${new Date(candles[0].time * 1000).toLocaleString()}`, 'debug');
+      log(`📊 Última vela: ${new Date(candles[candles.length-1].time * 1000).toLocaleString()}`, 'debug');
       
       if (candles.length >= 51 && aiState.trainingCount < 3) {
         setTimeout(() => AIEngine.train(candles), 100);
       }
       
       if (botRunning) analyzeMarket();
+      return true;
+    } else {
+      log(`❌ REST: Sin datos en respuesta`, 'critical');
+      return false;
     }
   } catch (err) {
-    log(`❌ Error cargando histórico: ${err.message}`, 'error');
+    log(`❌ REST Error: ${err.message}`, 'critical');
+    return false;
   }
 }
 
 // ==========================================
-// CONEXIÓN Y DATOS (CORREGIDO)
+// CONEXIÓN
 // ==========================================
 function connect() {
   if (isReconnecting) return;
@@ -595,38 +524,32 @@ function connect() {
   isReconnecting = true;
   reconnectAttempts++;
   
-  log(`Conectando... (Intento ${reconnectAttempts}/${maxReconnectAttempts})`, 'info');
-  document.getElementById('statusBadge').textContent = 'Reconectando...';
-  document.getElementById('statusBadge').className = 'status-badge status-reconnecting';
-  document.getElementById('connectionInfo').textContent = `Intento ${reconnectAttempts}/${maxReconnectAttempts}`;
+  log(`Conectando... (${reconnectAttempts}/${maxReconnectAttempts})`, 'info');
+  document.getElementById('statusBadge').textContent = 'Conectando...';
+  document.getElementById('statusBadge').className = 'status-badge status-disconnected';
   
   ws = new WebSocket(SERVER_URL);
 
   ws.onopen = () => {
-    log("✅ Conectado al servidor proxy", 'success');
+    log("✅ Conectado al servidor", 'success');
     document.getElementById('statusBadge').textContent = 'Conectado';
     document.getElementById('statusBadge').className = 'status-badge status-connected';
-    document.getElementById('connectionInfo').textContent = 'Conexión estable';
+    document.getElementById('connectionInfo').textContent = 'Online';
     reconnectAttempts = 0;
     isReconnecting = false;
-    historyReceived = false;
     lastMessageTime = Date.now();
     
     if (heartbeatInterval) clearInterval(heartbeatInterval);
-    // FIX: Heartbeat cada 15 segundos (más frecuente)
     heartbeatInterval = setInterval(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'PING' }));
-        // Verificar si hay actividad reciente
-        const timeSinceLastMessage = Date.now() - lastMessageTime;
-        if (timeSinceLastMessage > 60000) {
-          log(`⚠️ Sin actividad por ${Math.round(timeSinceLastMessage/1000)}s. Enviando heartbeat...`, 'info');
-        }
+        const idle = Date.now() - lastMessageTime;
+        if (idle > 30000) log(`⚠️ Idle ${Math.round(idle/1000)}s`, 'debug');
       }
     }, 15000);
     
     if (currentAccountId && userSelectedAccount) {
-      log(`🔄 Reconectando a cuenta ${currentAccountId}...`, 'info');
+      log(`🔄 Reconectando a ${currentAccountId}...`, 'info');
       ws.send(JSON.stringify({ type: 'SELECT_ACCOUNT', account_id: currentAccountId }));
     }
   };
@@ -636,86 +559,82 @@ function connect() {
       lastMessageTime = Date.now();
       const data = JSON.parse(e.data);
       
+      // Log de todos los mensajes recibidos
       if (data.msg_type) {
-        log(`📨 Recibido: ${data.msg_type}`, 'debug');
+        log(`📨 ${data.msg_type}`, 'debug');
+      } else if (data.type) {
+        log(`📨 type:${data.type}`, 'debug');
       }
       
       if (data.type === 'PING') { ws.send(JSON.stringify({ type: 'PONG' })); return; }
       handleMessage(data);
-    } catch (err) { log(`Error parseando: ${err.message}`, 'error'); }
+    } catch (err) { log(`Parse error: ${err.message}`, 'error'); }
   };
 
   ws.onclose = (event) => {
-    log(`🔌 Conexión cerrada (Código: ${event.code}, Razón: ${event.reason || 'N/A'})`, 'error');
+    log(`🔌 Cerrado (code:${event.code}, reason:${event.reason || 'N/A'})`, 'error');
     document.getElementById('statusBadge').textContent = 'Desconectado';
     document.getElementById('statusBadge').className = 'status-badge status-disconnected';
-    document.getElementById('connectionInfo').textContent = 'Desconectado';
+    document.getElementById('connectionInfo').textContent = 'Offline';
     isReconnecting = false;
     if (heartbeatInterval) clearInterval(heartbeatInterval);
-    if (historyRequestTimeout) clearTimeout(historyRequestTimeout);
-    
-    const shouldResubscribe = botRunning || candles.length > 0;
     
     if (reconnectAttempts < maxReconnectAttempts) {
       const delay = Math.min(3000 * Math.pow(1.5, reconnectAttempts), 30000);
       log(`⏳ Reconectando en ${Math.round(delay/1000)}s...`, 'info');
       setTimeout(() => {
         connect();
-        if (shouldResubscribe && userSelectedAccount && currentAccountId) {
+        if (userSelectedAccount && currentAccountId) {
           setTimeout(() => {
             if (ws && ws.readyState === WebSocket.OPEN) {
-              log("🔄 Re-suscribiendo a velas tras reconexión...", 'info');
-              historyReceived = false;
-              subscribeToCandles(true);
+              log("🔄 Re-suscribiendo...", 'info');
+              subscribeToCandles(false);
             }
           }, 2000);
         }
       }, delay);
     } else {
-      log("❌ Máximo de intentos alcanzado. Recarga la página.", 'error');
-      showAlert("❌ No se pudo reconectar. Recarga la página.");
+      log("❌ Máximo intentos. Recarga la página.", 'critical');
+      showAlert("❌ Sin conexión. Recarga.");
     }
   };
 
-  ws.onerror = (error) => { 
-    log(`❌ Error de conexión: ${error.message || 'Desconocido'}`, 'error'); 
-  };
+  ws.onerror = () => { log("❌ Error conexión", 'error'); };
 }
 
 function handleMessage(data) {
   if (data.type === 'ACCOUNTS_LIST') {
-    log(`📋 Recibidas ${data.accounts.length} cuentas`, 'info');
+    log(`📋 ${data.accounts.length} cuentas`, 'info');
     processAccounts(data.accounts);
     return;
   }
 
   if (data.type === 'CONNECTED') {
-    log(`✅ Conectado a cuenta: ${data.account_id}`, 'success');
+    log(`✅ Cuenta: ${data.account_id}`, 'success');
     document.getElementById('statusBadge').textContent = 'Conectado';
     document.getElementById('statusBadge').className = 'status-badge status-connected';
     document.getElementById('connectionInfo').textContent = `Cuenta: ${data.account_id}`;
     currentAccountId = data.account_id;
-    requestBalance();
     
-    historyReceived = false;
+    // Pedir saldo
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+    }
+    
+    // Cargar histórico por REST INMEDIATAMENTE
+    setTimeout(() => loadHistoryREST(true), 500);
+    
+    // También suscribirse por WebSocket para tiempo real
     subscribeToCandles(true);
-    
-    historyRequestTimeout = setTimeout(() => {
-      if (!historyReceived && candles.length < 50) {
-        log("⚠️ Histórico no recibido. Cargando por REST...", 'info');
-        loadHistoryREST();
-      }
-    }, 5000);
-    
     return;
   }
 
-  if (data.type === 'DISCONNECTED') { log("🔌 Desconectado de Deriv", 'error'); return; }
-  if (data.type === 'ERROR') { log(`❌ Error: ${data.message}`, 'error'); return; }
+  if (data.type === 'DISCONNECTED') { log("🔌 Desconectado Deriv", 'error'); return; }
+  if (data.type === 'ERROR') { log(`❌ ${data.message}`, 'error'); return; }
 
   if (data.msg_type === 'subscription') {
     subscriptionId = data.subscription.id;
-    log(`📡 Suscripción activa (ID: ${subscriptionId})`, 'info');
+    log(`📡 Suscripción: ${subscriptionId}`, 'info');
     return;
   }
 
@@ -733,33 +652,33 @@ function handleMessage(data) {
     }
     
     if (accId === currentAccountId) RiskManager.init(balance);
-    
-    log(`💰 Saldo ${accId}: ${balance.toFixed(2)} ${currency}`, 'success');
+    log(`💰 ${accId}: ${balance.toFixed(2)} ${currency}`, 'success');
     return;
   }
 
-  if (data.msg_type === 'history') {
-    historyReceived = true;
-    if (historyRequestTimeout) clearTimeout(historyRequestTimeout);
-    
-    const newCandles = data.history.prices.map((p, i) => ({
-      time: data.history.times[i], open: parseFloat(p), high: parseFloat(p), low: parseFloat(p), close: parseFloat(p)
-    }));
-    
-    log(`📊 Histórico recibido: ${newCandles.length} velas`, 'success');
-    
-    const existingTimes = new Set(candles.map(c => c.time));
-    newCandles.forEach(c => { if (!existingTimes.has(c.time)) candles.push(c); });
-    candles.sort((a, b) => a.time - b.time);
-    if (candles.length > 100) candles = candles.slice(-100);
-    
-    updateChart();
-    log(`📊 Total: ${candles.length} velas`, 'info');
-    
-    if (candles.length >= 51 && aiState.trainingCount < 3) {
-      setTimeout(() => AIEngine.train(candles), 100);
+  // ✅ MANEJAR "candles" (el nombre real que usa Deriv)
+  if (data.msg_type === 'candles' || data.msg_type === 'history') {
+    const candlesData = data.candles || data.history;
+    if (candlesData && candlesData.prices) {
+      const newCandles = candlesData.prices.map((p, i) => ({
+        time: candlesData.times[i],
+        open: parseFloat(p), high: parseFloat(p), low: parseFloat(p), close: parseFloat(p)
+      }));
+      log(`📊 Histórico WS: ${newCandles.length} velas`, 'success');
+      
+      const existingTimes = new Set(candles.map(c => c.time));
+      newCandles.forEach(c => { if (!existingTimes.has(c.time)) candles.push(c); });
+      candles.sort((a, b) => a.time - b.time);
+      if (candles.length > 100) candles = candles.slice(-100);
+      
+      updateChart();
+      log(`📊 Total: ${candles.length} velas`, 'info');
+      
+      if (candles.length >= 51 && aiState.trainingCount < 3) {
+        setTimeout(() => AIEngine.train(candles), 100);
+      }
+      if (botRunning) analyzeMarket();
     }
-    if (botRunning) analyzeMarket();
     return;
   }
 
@@ -768,14 +687,11 @@ function handleMessage(data) {
     const candleTime = parseInt(ohlc.open_time);
     const candle = {
       time: candleTime,
-      open: parseFloat(ohlc.open),
-      high: parseFloat(ohlc.high),
-      low: parseFloat(ohlc.low),
-      close: parseFloat(ohlc.close)
+      open: parseFloat(ohlc.open), high: parseFloat(ohlc.high),
+      low: parseFloat(ohlc.low), close: parseFloat(ohlc.close)
     };
     
     const lastCandle = candles[candles.length - 1];
-    
     if (lastCandle && lastCandle.time === candleTime) {
       candles[candles.length - 1] = candle;
     } else {
@@ -784,11 +700,9 @@ function handleMessage(data) {
         candles.push(candle);
         if (candles.length > 100) candles = candles.slice(-100);
         log(`🕯️ Nueva vela. Total: ${candles.length}`, 'info');
-        
         if (candles.length % 10 === 0 && candles.length >= 51) {
           setTimeout(() => AIEngine.train(candles), 100);
         }
-        
         if (botRunning) analyzeMarket();
       }
     }
@@ -797,32 +711,25 @@ function handleMessage(data) {
   }
 
   if (data.msg_type === 'proposal') {
-    if (data.error) { log(`Error en propuesta: ${data.error.message}`, 'error'); return; }
-    const proposalId = data.proposal.id;
-    log(`Propuesta recibida (ID: ${proposalId}). Ejecutando...`, 'trade');
-    ws.send(JSON.stringify({ buy: proposalId, price: data.proposal.ask_price }));
+    if (data.error) { log(`Error propuesta: ${data.error.message}`, 'error'); return; }
+    log(`Propuesta ID: ${data.proposal.id}`, 'trade');
+    ws.send(JSON.stringify({ buy: data.proposal.id, price: data.proposal.ask_price }));
     return;
   }
 
   if (data.msg_type === 'buy') {
-    if (data.error) { log(`Error en compra: ${data.error.message}`, 'error'); return; }
-    log(`✅ Operación ejecutada: ID ${data.buy.contract_id}`, 'success');
+    if (data.error) { log(`Error compra: ${data.error.message}`, 'error'); return; }
+    log(`✅ Operación: ${data.buy.contract_id}`, 'success');
     addTradeToHistory('LIVE', window.pendingTrade?.direction || 'N/A', riskState.currentStake, 'En curso');
-    
-    ws.send(JSON.stringify({
-      proposal_open_contract: 1,
-      contract_id: data.buy.contract_id,
-      subscribe: 1
-    }));
+    ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id: data.buy.contract_id, subscribe: 1 }));
     return;
   }
 
   if (data.msg_type === 'proposal_open_contract' && data.proposal_open_contract.is_sold) {
-    const contract = data.proposal_open_contract;
-    const profit = parseFloat(contract.profit);
+    const profit = parseFloat(data.proposal_open_contract.profit);
     const isWin = profit > 0;
     RiskManager.recordTrade(isWin);
-    log(`Contrato cerrado: ${isWin ? 'GANADA' : 'PERDIDA'} (${profit.toFixed(2)})`, isWin ? 'success' : 'error');
+    log(`${isWin ? '✅ GANADA' : '❌ PERDIDA'}: ${profit.toFixed(2)}`, isWin ? 'success' : 'error');
     return;
   }
 }
@@ -841,48 +748,26 @@ function processAccounts(accounts) {
   });
 
   if (!userSelectedAccount) {
-    if (accountsData.demo) {
-      log("ℹ️ Auto-seleccionando Demo (primera carga)...", 'info');
-      selectAccount('demo');
-    } else if (accountsData.real) {
-      log("ℹ️ Auto-seleccionando Real (primera carga)...", 'info');
-      selectAccount('real');
-    }
-  } else {
-    log("✅ Cuentas actualizadas. Manteniendo selección.", 'info');
+    if (accountsData.demo) { log("ℹ️ Auto-seleccionando Demo", 'info'); selectAccount('demo'); }
+    else if (accountsData.real) { log("ℹ️ Auto-seleccionando Real", 'info'); selectAccount('real'); }
   }
 }
 
 function selectAccount(type) {
   const account = accountsData[type];
-  if (!account) { log(`⚠️ No hay cuenta ${type} disponible`, 'error'); return; }
-  
+  if (!account) { log(`⚠️ No hay cuenta ${type}`, 'error'); return; }
   userSelectedAccount = true;
-
   document.getElementById('btnDemo').classList.toggle('active', type === 'demo');
   document.getElementById('btnReal').classList.toggle('active', type === 'real');
-  
-  log(`🎯 Seleccionando cuenta ${type}: ${account.id}`, 'info');
-  
-  if (currentAccountId === account.id) {
-    log(`ℹ️ Ya conectado a ${account.id}.`, 'info');
-    return;
-  }
-  
+  log(`🎯 Cuenta ${type}: ${account.id}`, 'info');
+  if (currentAccountId === account.id) { log("ℹ️ Ya conectado", 'info'); return; }
   ws.send(JSON.stringify({ type: 'SELECT_ACCOUNT', account_id: account.id }));
-}
-
-function requestBalance() {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
 }
 
 function subscribeToCandles(preserveCandles = false) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  
   const symbol = document.getElementById('symbol').value;
   const granularity = parseInt(document.getElementById('granularity').value);
-  currentSymbol = symbol;
-  currentGranularity = granularity;
   
   if (subscriptionId) {
     ws.send(JSON.stringify({ forget: subscriptionId }));
@@ -892,48 +777,37 @@ function subscribeToCandles(preserveCandles = false) {
   if (!preserveCandles) {
     candles = [];
     updateChart();
-  } else {
-    log(`📊 Preservando ${candles.length} velas`, 'info');
   }
 
-  log(`📡 Suscribiendo a ${symbol} (${granularity}s)...`, 'info');
-  
+  log(`📡 Suscribiendo: ${symbol} (${granularity}s)`, 'info');
   ws.send(JSON.stringify({
     ticks_history: symbol, adjust_start_time: 1, count: 100, end: 'latest',
     style: 'candles', granularity: granularity, subscribe: 1
   }));
-
-  // FIX: Cargar histórico por REST como respaldo
-  setTimeout(() => {
-    if (candles.length < 50) {
-      log(`⚠️ WebSocket no envió histórico. Cargando por REST...`, 'info');
-      loadHistoryREST();
-    }
-  }, 3000);
-
   document.getElementById('chartSymbol').textContent = symbol;
 }
 
 function changeSymbol() {
   const symbol = document.getElementById('symbol').value;
   log(`🔄 Cambiando a ${symbol}...`, 'info');
+  candles = [];
+  updateChart();
   subscribeToCandles(false);
+  setTimeout(() => loadHistoryREST(true), 500);
 }
 
 // ==========================================
-// BOT Y ANÁLISIS
+// BOT
 // ==========================================
 function startBot() {
-  if (emergencyStopped) { log("No se puede iniciar. Recarga la página.", 'error'); return; }
-  if (candles.length < 50) { log(`⚠️ Esperando datos (${candles.length}/50)...`, 'error'); return; }
-  
+  if (emergencyStopped) { log("Recarga la página", 'error'); return; }
+  if (candles.length < 50) { log(`⚠️ Faltan datos (${candles.length}/50)`, 'error'); return; }
   botRunning = true;
   document.getElementById('btnStart').disabled = true;
   document.getElementById('btnStop').disabled = false;
   document.getElementById('statusBadge').textContent = 'Trading';
   document.getElementById('statusBadge').className = 'status-badge status-trading';
-  
-  log("🤖 Bot iniciado. Analizando cada 5s...", 'success');
+  log("🤖 Bot iniciado", 'success');
   analyzeMarket();
   analysisInterval = setInterval(analyzeMarket, 5000);
 }
@@ -946,13 +820,13 @@ function stopBot() {
   document.getElementById('statusBadge').textContent = 'Detenido';
   document.getElementById('statusBadge').className = 'status-badge status-disconnected';
   showAlert("🛑 Bot detenido");
-  log("🛑 Bot detenido manualmente", 'error');
+  log("🛑 Detenido", 'error');
 }
 
 function analyzeMarket() {
   if (!botRunning) return;
   if (candles.length < 50) {
-    log(`⚠️ Esperando datos (${candles.length}/50)...`, 'info');
+    log(`⚠️ Esperando datos (${candles.length}/50)`, 'info');
     return;
   }
 
@@ -963,16 +837,9 @@ function analyzeMarket() {
     const prediction = AIEngine.predict(candles);
     document.getElementById('aiPrediction').textContent = prediction.direction || '---';
     document.getElementById('aiConfidence').textContent = prediction.confidence.toFixed(1) + '%';
-    if (prediction.direction) {
-      eval = { 
-        score: prediction.confidence, 
-        reason: prediction.reason, 
-        direction: prediction.direction, 
-        duration: TA.calculateDuration(candles) 
-      };
-    } else {
-      eval = { score: 0, reason: prediction.reason, direction: null, duration: 5 };
-    }
+    eval = prediction.direction ? 
+      { score: prediction.confidence, reason: prediction.reason, direction: prediction.direction, duration: TA.calculateDuration(candles) } :
+      { score: 0, reason: prediction.reason, direction: null, duration: 5 };
   } else {
     eval = StrategyEngine.evaluate(strategy, candles);
   }
@@ -980,22 +847,21 @@ function analyzeMarket() {
   updateScore(eval.score, eval.reason);
 
   if (eval.score >= 50) {
-    log(`📊 Score=${eval.score.toFixed(1)} | Dir=${eval.direction || 'N/A'} | ${eval.reason}`, 'info');
+    log(`📊 Score=${eval.score.toFixed(1)} | ${eval.direction || 'N/A'} | ${eval.reason}`, 'info');
   }
 
   if (eval.score >= 70 && eval.direction) {
     const riskCheck = RiskManager.canTrade();
     if (riskCheck.allowed) {
       const mode = document.getElementById('mode').value;
-      const duration = eval.duration;
       if (mode === 'sim') {
-        log(`[SIM] Señal: ${eval.direction} | Score: ${eval.score.toFixed(1)} | Dur: ${duration}t`, 'signal');
+        log(`[SIM] ${eval.direction} | Score: ${eval.score.toFixed(1)}`, 'signal');
         addTradeToHistory('SIM', eval.direction, 0, `Score: ${eval.score.toFixed(0)}`);
       } else {
-        executeTrade(eval.direction, duration);
+        executeTrade(eval.direction, eval.duration);
       }
     } else {
-      log(`⚠️ Señal ignorada: ${riskCheck.reason}`, 'info');
+      log(`⚠️ Ignorada: ${riskCheck.reason}`, 'info');
     }
   }
 }
@@ -1012,7 +878,7 @@ function executeTrade(direction, duration) {
 }
 
 // ==========================================
-// UI Y UTILIDADES
+// UI
 // ==========================================
 function initChart() {
   const ctx = document.getElementById('mainChart').getContext('2d');
@@ -1061,8 +927,7 @@ function addTradeToHistory(mode, direction, stake, status) {
   if (list.children.length === 1 && list.children[0].textContent.includes('Sin operaciones')) list.innerHTML = '';
   const div = document.createElement('div');
   div.className = 'trade-item';
-  const time = new Date().toLocaleTimeString();
-  div.innerHTML = `<span>${time} | ${mode} | ${direction}</span> <span>$${stake.toFixed(2)}</span> <span>${status}</span>`;
+  div.innerHTML = `<span>${new Date().toLocaleTimeString()} | ${mode} | ${direction}</span> <span>$${stake.toFixed(2)}</span> <span>${status}</span>`;
   list.insertBefore(div, list.firstChild);
   if (list.children.length > 10) list.removeChild(list.lastChild);
 }
@@ -1073,48 +938,40 @@ function showAlert(message) {
   banner.style.display = 'block';
   setTimeout(() => { banner.style.display = 'none'; }, 5000);
   const alertsList = document.getElementById('alertsList');
-  const time = new Date().toLocaleTimeString();
-  alertsList.innerHTML = `<div style="margin-bottom: 5px; padding: 5px; background: var(--bg); border-radius: 4px;"><strong>${time}:</strong> ${message}</div>` + alertsList.innerHTML;
+  alertsList.innerHTML = `<div style="margin-bottom: 5px; padding: 5px; background: var(--bg); border-radius: 4px;"><strong>${new Date().toLocaleTimeString()}:</strong> ${message}</div>` + alertsList.innerHTML;
 }
 
 function updateStrategyInfo() {
   const strategy = document.getElementById('strategy').value;
   const info = document.getElementById('strategyInfo');
   const descriptions = {
-    'A': '<strong>Tendencia:</strong> EMA20>EMA50 con RSI (40-60)',
-    'B': '<strong>Reversión:</strong> Bandas Bollinger + RSI extremo',
-    'C': '<strong>Breakout:</strong> Ruptura de máx/mín 20 velas',
-    'AI': '<strong>IA LSTM:</strong> Red neuronal predictiva'
+    'A': '<strong>Tendencia:</strong> EMA20>EMA50 + RSI',
+    'B': '<strong>Reversión:</strong> Bandas Bollinger + RSI',
+    'C': '<strong>Breakout:</strong> Ruptura 20 velas',
+    'AI': '<strong>IA LSTM:</strong> Red neuronal'
   };
   info.innerHTML = descriptions[strategy];
 }
 
 function log(msg, type = 'info') {
   const container = document.getElementById('logContainer');
-  const time = new Date().toLocaleTimeString();
   const div = document.createElement('div');
   div.className = `log-entry log-${type}`;
-  div.textContent = `[${time}] ${msg}`;
+  div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
   while (container.children.length > 100) container.removeChild(container.firstChild);
 }
 
-// ==========================================
-// INICIALIZACIÓN
-// ==========================================
 window.onload = () => {
   initChart();
   connect();
   updateStrategyInfo();
-  log("🚀 Sistema iniciado con IA LSTM.", 'info');
+  log("🚀 Sistema iniciado", 'info');
 };
 
-// Heartbeat para mantener Render despierto
 setInterval(() => {
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ type: 'PING' }));
-  }
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'PING' }));
 }, 14 * 60 * 1000);
 </script>
 </body>
