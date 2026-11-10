@@ -276,6 +276,11 @@ let riskState = {
   maxDailyLossPct: 0.05, maxDailyTrades: 20, maxLossStreak: 3
 };
 
+// ✅ FIX #1: Función helper para redondear a 2 decimales
+function round2(num) {
+  return Math.round(num * 100) / 100;
+}
+
 function safeSetText(id, text) {
   const el = document.getElementById(id);
   if (el) el.textContent = text;
@@ -423,7 +428,6 @@ const AIEngine = {
     const durationObj = TA.calculateDuration(candles);
     return { score: Math.min(100, score), reason: reasons.join(', ') || 'Sin confluencia', direction, duration: durationObj.value, durationUnit: durationObj.unit, indicators: { ema20: lastEma20, ema50: lastEma50, rsi: lastRsi, bbUpper: lastBBUpper, bbLower: lastBBLower, price: lastClose } };
   },
-  // ✅ CORREGIDO: Ahora retorna duration y durationUnit
   predict: (candles) => {
     const result = AIEngine.evaluate(candles);
     return { 
@@ -445,14 +449,16 @@ const AIEngine = {
   }
 };
 
+// ✅ FIX #2, #3, #4: RiskManager con redondeo y validación
 const RiskManager = {
   init: (balance) => {
     if (riskState.initialBalance === 0) {
       riskState.initialBalance = parseFloat(balance);
       riskState.currentBalance = riskState.initialBalance;
-      riskState.baseStake = Math.max(0.35, riskState.initialBalance * 0.01);
+      // ✅ FIX: Redondear stake base a 2 decimales
+      riskState.baseStake = round2(Math.max(0.35, riskState.initialBalance * 0.01));
       riskState.currentStake = riskState.baseStake;
-      log(`🎯 Riesgo: $${riskState.initialBalance.toFixed(2)} | Stake: $${riskState.baseStake.toFixed(2)}`, 'info');
+      log(`🎯 Riesgo: $${riskState.initialBalance.toFixed(2)} | Stake base: $${riskState.baseStake.toFixed(2)}`, 'info');
     }
     riskState.currentBalance = parseFloat(balance);
     riskState.dailyPnl = riskState.currentBalance - riskState.initialBalance;
@@ -472,15 +478,24 @@ const RiskManager = {
   recordTrade: (isWin) => {
     riskState.tradesToday++;
     totalTrades++;
-    if (isWin) { riskState.wins++; riskState.lossStreak = 0; riskState.currentStake = riskState.baseStake; }
-    else {
-      riskState.losses++; riskState.lossStreak++;
+    if (isWin) { 
+      riskState.wins++; 
+      riskState.lossStreak = 0; 
+      riskState.currentStake = riskState.baseStake; 
+    } else {
+      riskState.losses++; 
+      riskState.lossStreak++;
       if (riskState.lossStreak >= riskState.maxLossStreak) {
         riskState.isPaused = true;
         riskState.pauseEndTime = Date.now() + 15 * 60 * 1000;
         showAlert(`⚠️ ${riskState.lossStreak} pérdidas. Pausa 15min.`);
       }
-      riskState.currentStake = riskState.lossStreak <= 2 ? riskState.baseStake * Math.pow(2, riskState.lossStreak) : riskState.baseStake;
+      // ✅ FIX: Redondear martingala a 2 decimales
+      if (riskState.lossStreak <= 2) {
+        riskState.currentStake = round2(riskState.baseStake * Math.pow(2, riskState.lossStreak));
+      } else {
+        riskState.currentStake = riskState.baseStake;
+      }
     }
     updateStats();
   }
@@ -848,17 +863,34 @@ function updateIndicatorSignal(elementId, signal) {
   }
 }
 
+// ✅ FIX #5: executeTrade con stake redondeado y validación
 function executeTrade(direction, duration, durationUnit) {
-  const stake = riskState.currentStake;
   const symbol = document.getElementById('symbol').value;
+  
+  // ✅ Redondear a 2 decimales
+  let stake = round2(riskState.currentStake);
+  
+  // ✅ Validación: mínimo $0.35 (requisito de Deriv)
+  if (stake < 0.35) {
+    stake = 0.35;
+    log(`⚠️ Stake ajustado al mínimo: $0.35`, 'warning');
+  }
+  
+  // ✅ Validación: no exceder saldo disponible
+  if (stake > riskState.currentBalance) {
+    stake = round2(riskState.currentBalance * 0.95);
+    log(`⚠️ Stake ajustado al 95% del saldo: $${stake.toFixed(2)}`, 'warning');
+  }
+  
   window.pendingTrade = { direction, duration, durationUnit, stake };
   
   const durationLabel = durationUnit === 'm' ? `${duration}m` : `${duration}t`;
   log(`Solicitando: ${direction} | $${stake.toFixed(2)} | ${durationLabel}`, 'trade');
   
+  // ✅ FIX: amount formateado a 2 decimales
   const proposal = {
     proposal: 1,
-    amount: stake,
+    amount: parseFloat(stake.toFixed(2)),
     basis: 'stake',
     contract_type: direction,
     currency: 'USD',
