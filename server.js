@@ -10,7 +10,7 @@ const wss = new WebSocket.Server({ port: PORT });
 console.log(`🚀 [SERVER] Bot Autónomo iniciado en puerto ${PORT}`);
 
 // ==========================================
-// ANÁLISIS TÉCNICO (Movido al servidor)
+// ANÁLISIS TÉCNICO
 // ==========================================
 const TA = {
   ema: (data, period) => {
@@ -69,7 +69,50 @@ const TA = {
 };
 
 // ==========================================
-// ESTRATEGIA ENSEMBLE (Movida al servidor)
+// ESTRATEGIAS TRADICIONALES (A, B, C)
+// ==========================================
+const StrategyEngine = {
+  evaluate: (strategy, candles) => {
+    if (candles.length < 50) return { score: 0, reason: "Datos insuficientes", direction: null, duration: 5, durationUnit: 't' };
+    const closes = candles.map(c => c.close);
+    const highs = candles.map(c => c.high);
+    const lows = candles.map(c => c.low);
+    const lastClose = closes[closes.length - 1];
+    const ema20 = TA.ema(closes, 20);
+    const ema50 = TA.ema(closes, 50);
+    const rsi = TA.rsi(closes, 14);
+    const bb = TA.bollinger(closes, 20, 2);
+    if (ema20.length === 0 || ema50.length === 0) return { score: 0, reason: "Calculando...", direction: null, duration: 5, durationUnit: 't' };
+    const lastEma20 = ema20[ema20.length - 1];
+    const lastEma50 = ema50[ema50.length - 1];
+    const lastRsi = rsi.length > 0 ? rsi[rsi.length - 1] : 50;
+    const lastBBUpper = bb.upper[bb.upper.length - 1];
+    const lastBBLower = bb.lower[bb.lower.length - 1];
+    let score = 0, reasons = [], direction = null;
+    const durationObj = TA.calculateDuration(candles);
+    
+    if (strategy === 'A') {
+      if (lastClose > lastEma20 && lastEma20 > lastEma50 && lastRsi > 50 && lastRsi < 75) { score += 40; reasons.push("Tendencia alcista"); direction = 'CALL'; }
+      else if (lastClose < lastEma20 && lastEma20 < lastEma50 && lastRsi < 50 && lastRsi > 25) { score += 40; reasons.push("Tendencia bajista"); direction = 'PUT'; }
+      if (lastRsi > 40 && lastRsi < 60) { score += 30; reasons.push("RSI neutral"); }
+    } else if (strategy === 'B') {
+      if (lastClose <= lastBBLower && lastRsi < 30) { score += 50; reasons.push("Banda inferior + RSI bajo"); direction = 'CALL'; }
+      else if (lastClose >= lastBBUpper && lastRsi > 70) { score += 50; reasons.push("Banda superior + RSI alto"); direction = 'PUT'; }
+    } else if (strategy === 'C') {
+      const highest20 = Math.max(...highs.slice(-20));
+      const lowest20 = Math.min(...lows.slice(-20));
+      if (lastClose > highest20) { score += 45; reasons.push("Ruptura alcista"); direction = 'CALL'; }
+      else if (lastClose < lowest20) { score += 45; reasons.push("Ruptura bajista"); direction = 'PUT'; }
+    }
+    
+    if (Math.abs(lastEma20 - lastEma50) < (lastClose * 0.001)) { score -= 20; reasons.push("Lateral"); }
+    score = Math.max(0, Math.min(100, score));
+    return { score, reason: reasons.join(', ') || "Sin señal", direction, duration: durationObj.value, durationUnit: durationObj.unit, indicators: { ema20: lastEma20, ema50: lastEma50, rsi: lastRsi, bbUpper: lastBBUpper, bbLower: lastBBLower, price: lastClose } };
+  }
+};
+
+// ==========================================
+// IA ENSEMBLE
 // ==========================================
 const AIEngine = {
   weights: { ema: 0.3, rsi: 0.25, bb: 0.25, breakout: 0.2 },
@@ -118,12 +161,15 @@ const AIEngine = {
 };
 
 // ==========================================
-// GESTIÓN DE RIESGO (Movida al servidor)
+// UTILIDADES
 // ==========================================
 function round2(num) {
   return Math.round(num * 100) / 100;
 }
 
+// ==========================================
+// GESTIÓN DE RIESGO
+// ==========================================
 class RiskManager {
   constructor(initialBalance, baseStake) {
     this.initialBalance = initialBalance;
@@ -143,8 +189,9 @@ class RiskManager {
 
   canTrade() {
     if (this.tradesToday >= this.maxDailyTrades) return { allowed: false, reason: "Límite 20 trades" };
-    if (this.currentBalance <= -(this.initialBalance * this.maxDailyLossPct)) return { allowed: false, reason: "Stop Loss 5%" };
-    if (this.currentBalance >= (this.initialBalance * 0.10)) return { allowed: false, reason: "Take Profit 10%" };
+    const dailyPnl = this.currentBalance - this.initialBalance;
+    if (dailyPnl <= -(this.initialBalance * this.maxDailyLossPct)) return { allowed: false, reason: "Stop Loss 5%" };
+    if (dailyPnl >= (this.initialBalance * 0.10)) return { allowed: false, reason: "Take Profit 10%" };
     if (this.isPaused && Date.now() < this.pauseEndTime) {
       const mins = Math.ceil((this.pauseEndTime - Date.now()) / 60000);
       return { allowed: false, reason: `Pausa ${mins}min` };
@@ -166,7 +213,7 @@ class RiskManager {
         this.pauseEndTime = Date.now() + 15 * 60 * 1000;
         console.log(`⚠️ ${this.lossStreak} pérdidas. Pausa 15min.`);
       }
-      // ✅ SIN MARTINGALA: Stake fijo
+      // SIN MARTINGALA: Stake fijo
       this.currentStake = this.baseStake;
     }
   }
@@ -177,7 +224,7 @@ class RiskManager {
 }
 
 // ==========================================
-// SERVIDOR PRINCIPAL
+// FUNCIONES DE API
 // ==========================================
 async function getAllAccounts() {
   try {
@@ -208,6 +255,9 @@ async function getPrivateUrl(accountId) {
   }
 }
 
+// ==========================================
+// SERVIDOR PRINCIPAL
+// ==========================================
 wss.on('connection', async (ws) => {
   console.log('✅ [SERVER] Cliente conectado al proxy');
   let derivWs = null;
@@ -225,6 +275,7 @@ wss.on('connection', async (ws) => {
     isRunning: false
   };
   let analysisInterval = null;
+  let clientWs = ws;
 
   try {
     const accounts = await getAllAccounts();
@@ -269,10 +320,10 @@ wss.on('connection', async (ws) => {
             console.log(`🟢 [SERVER] Conectado a Deriv (${accountId})`);
             ws.send(JSON.stringify({ type: 'CONNECTED', account_id: accountId }));
             
-            // Inicializar RiskManager
-            riskManager = new RiskManager(parseFloat(accounts.find(a => a.account_id === accountId)?.balance || 1000), botConfig.stake);
+            const account = accounts.find(a => a.account_id === accountId);
+            const balance = account ? parseFloat(account.balance) : 1000;
+            riskManager = new RiskManager(balance, botConfig.stake);
             
-            // Solicitar saldo y velas
             derivWs.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             derivWs.send(JSON.stringify({
               ticks_history: botConfig.symbol,
@@ -287,18 +338,14 @@ wss.on('connection', async (ws) => {
 
           derivWs.on('message', (data) => {
             const parsed = JSON.parse(data.toString());
-            
-            // Reenviar al cliente
             ws.send(data.toString());
-            
-            // Procesar en el servidor
             handleDerivMessage(parsed, derivWs, ws);
           });
 
           derivWs.on('close', () => {
             console.log('🔴 [SERVER] Deriv cerró');
             ws.send(JSON.stringify({ type: 'DISCONNECTED' }));
-            if (analysisInterval) clearInterval(analysisInterval);
+            if (analysisInterval) { clearInterval(analysisInterval); analysisInterval = null; }
           });
 
           derivWs.on('error', (err) => {
@@ -306,12 +353,15 @@ wss.on('connection', async (ws) => {
           });
         }
         else if (data.type === 'UPDATE_CONFIG') {
-          // Actualizar configuración del bot
           botConfig = { ...botConfig, ...data.config };
           console.log(`⚙️ [SERVER] Configuración actualizada:`, botConfig);
           ws.send(JSON.stringify({ type: 'CONFIG_UPDATED', config: botConfig }));
         }
         else if (data.type === 'START_BOT') {
+          if (candles.length < 50) {
+            ws.send(JSON.stringify({ type: 'ERROR', message: 'Esperando datos de mercado...' }));
+            return;
+          }
           botConfig.isRunning = true;
           console.log('🤖 [SERVER] Bot iniciado');
           ws.send(JSON.stringify({ type: 'BOT_STARTED' }));
@@ -321,10 +371,7 @@ wss.on('connection', async (ws) => {
           botConfig.isRunning = false;
           console.log('🛑 [SERVER] Bot detenido');
           ws.send(JSON.stringify({ type: 'BOT_STOPPED' }));
-          if (analysisInterval) {
-            clearInterval(analysisInterval);
-            analysisInterval = null;
-          }
+          if (analysisInterval) { clearInterval(analysisInterval); analysisInterval = null; }
         }
         else if (derivWs && derivWs.readyState === WebSocket.OPEN) {
           derivWs.send(msg.toString());
@@ -336,7 +383,7 @@ wss.on('connection', async (ws) => {
 
     ws.on('close', () => {
       console.log('⚪ [SERVER] Cliente desconectado');
-      if (analysisInterval) clearInterval(analysisInterval);
+      if (analysisInterval) { clearInterval(analysisInterval); analysisInterval = null; }
       if (derivWs && derivWs.readyState === WebSocket.OPEN) derivWs.close();
     });
 
@@ -389,12 +436,22 @@ wss.on('connection', async (ws) => {
       }
     }
 
-    if (data.msg_type === 'proposal' && !data.error) {
+    if (data.msg_type === 'proposal') {
+      if (data.error) {
+        console.log(`❌ [SERVER] Error propuesta: ${data.error.message}`);
+        clientWs.send(JSON.stringify({ type: 'PROPOSAL_ERROR', message: data.error.message }));
+        return;
+      }
       console.log(`✅ [SERVER] Propuesta recibida: ${data.proposal.id}`);
       derivWs.send(JSON.stringify({ buy: data.proposal.id, price: data.proposal.ask_price }));
     }
 
-    if (data.msg_type === 'buy' && !data.error) {
+    if (data.msg_type === 'buy') {
+      if (data.error) {
+        console.log(`❌ [SERVER] Error compra: ${data.error.message}`);
+        clientWs.send(JSON.stringify({ type: 'BUY_ERROR', message: data.error.message }));
+        return;
+      }
       console.log(`✅ [SERVER] Operación ejecutada: ${data.buy.contract_id}`);
       clientWs.send(JSON.stringify({ type: 'TRADE_EXECUTED', contractId: data.buy.contract_id }));
       derivWs.send(JSON.stringify({ 
@@ -418,7 +475,8 @@ wss.on('connection', async (ws) => {
             wins: riskManager.wins,
             losses: riskManager.losses,
             lossStreak: riskManager.lossStreak,
-            currentStake: riskManager.currentStake
+            currentStake: riskManager.currentStake,
+            balance: riskManager.currentBalance
           }
         }));
       }
@@ -431,7 +489,12 @@ wss.on('connection', async (ws) => {
     analysisInterval = setInterval(() => {
       if (!botConfig.isRunning || candles.length < 50 || !riskManager) return;
 
-      const eval = AIEngine.evaluate(candles);
+      let eval;
+      if (botConfig.strategy === 'AI') {
+        eval = AIEngine.evaluate(candles);
+      } else {
+        eval = StrategyEngine.evaluate(botConfig.strategy, candles);
+      }
       
       clientWs.send(JSON.stringify({ 
         type: 'ANALYSIS', 
