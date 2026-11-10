@@ -60,7 +60,10 @@
         <div class="form-group">
           <label>Estrategia</label>
           <select id="strategy">
-            <option value="AI" selected>🤖 Ensemble IA</option>
+            <option value="A">A - Tendencia (EMA + RSI)</option>
+            <option value="B">B - Reversión (Bollinger + RSI)</option>
+            <option value="C">C - Breakout (Ruptura de rango)</option>
+            <option value="AI" selected>🤖 Ensemble IA (Recomendado)</option>
           </select>
         </div>
         <div class="form-group">
@@ -82,14 +85,14 @@
           </select>
         </div>
         <div class="form-group">
-          <label>Umbral de Score</label>
+          <label>Umbral de Score (mínimo para operar)</label>
           <input type="number" id="threshold" value="75" min="30" max="90" step="5">
         </div>
         <div class="form-group">
           <label>Modo</label>
           <select id="mode">
-            <option value="sim">Simulación</option>
-            <option value="live">Real</option>
+            <option value="sim" selected>Simulación (Solo señales)</option>
+            <option value="live">Real (Opera con dinero)</option>
           </select>
         </div>
         <div class="form-group">
@@ -101,7 +104,7 @@
 
       <div class="card">
         <h3>🤖 Control del Bot</h3>
-        <button id="btnStart" class="btn btn-primary" onclick="startBot()">▶ INICIAR BOT</button>
+        <button id="btnStart" class="btn btn-primary" onclick="startBot()" disabled>▶ INICIAR BOT</button>
         <button id="btnStop" class="btn btn-danger" onclick="stopBot()" disabled>🛑 DETENER BOT</button>
       </div>
     </div>
@@ -223,6 +226,7 @@ function handleServerMessage(data) {
     document.getElementById('losses').textContent = data.stats.losses;
     document.getElementById('lossStreak').textContent = data.stats.lossStreak;
     document.getElementById('currentStake').textContent = data.stats.currentStake.toFixed(2);
+    if (data.stats.balance) document.getElementById('balance').textContent = data.stats.balance.toFixed(2);
   }
 
   if (data.type === 'SIMULATION_SIGNAL') {
@@ -248,6 +252,14 @@ function handleServerMessage(data) {
   if (data.type === 'CONFIG_UPDATED') {
     log("⚙️ Configuración actualizada en el servidor", 'info');
   }
+
+  if (data.type === 'PROPOSAL_ERROR' || data.type === 'BUY_ERROR') {
+    log(`❌ Error: ${data.message}`, 'error');
+  }
+
+  if (data.type === 'ERROR') {
+    log(`❌ Error: ${data.message}`, 'error');
+  }
 }
 
 function connectToAccount() {
@@ -269,6 +281,7 @@ function updateConfig() {
     stake: parseFloat(document.getElementById('stake').value)
   };
   ws.send(JSON.stringify({ type: 'UPDATE_CONFIG', config }));
+  log(`⚙️ Enviando configuración: ${JSON.stringify(config)}`, 'info');
 }
 
 function startBot() {
