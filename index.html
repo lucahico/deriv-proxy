@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Deriv Pro Trader - Panel de Control</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
   :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --green: #2ea043; --red: #da3633; --blue: #58a6ff; --yellow: #d29922; --purple: #a371f7; }
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
@@ -29,11 +28,55 @@
   .log-success { border-color: var(--green); color: var(--green); font-weight: bold; }
   .log-error { border-color: var(--red); color: var(--red); }
   .log-trade { border-color: var(--yellow); color: var(--yellow); }
+  .log-heartbeat { border-color: var(--purple); color: var(--purple); }
   .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .stat-item { background: var(--bg); padding: 8px; border-radius: 4px; }
   .stat-label { font-size: 10px; color: #8b949e; }
   .stat-value { font-size: 14px; font-weight: bold; color: var(--green); }
   .stat-value.red { color: var(--red); }
+  
+  /* ✅ NUEVO: Panel de Estado del Bot */
+  .bot-status-panel { 
+    background: linear-gradient(135deg, #1a4d2e 0%, #0d1117 100%); 
+    border: 2px solid var(--green);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+  }
+  .bot-status-panel.inactive {
+    background: linear-gradient(135deg, #4d1a1a 0%, #0d1117 100%);
+    border-color: var(--red);
+  }
+  .status-indicator {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--red);
+    margin-right: 8px;
+    animation: none;
+  }
+  .status-indicator.active {
+    background: var(--green);
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(46, 160, 67, 0.7); }
+    50% { opacity: 0.8; box-shadow: 0 0 0 8px rgba(46, 160, 67, 0); }
+  }
+  .status-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    font-size: 12px;
+  }
+  .status-row:last-child { border-bottom: none; }
+  .status-label { color: #8b949e; }
+  .status-value { font-weight: bold; color: var(--text); }
+  .status-value.ok { color: var(--green); }
+  .status-value.warn { color: var(--yellow); }
+  .status-value.err { color: var(--red); }
 </style>
 </head>
 <body>
@@ -41,6 +84,42 @@
 <div class="container">
   <div class="grid">
     <div>
+      <!-- ✅ NUEVO: Panel de Estado del Bot (siempre visible) -->
+      <div id="botStatusPanel" class="bot-status-panel inactive">
+        <h3 style="color: white; border-bottom: 1px solid rgba(255,255,255,0.2);">
+          <span id="statusIndicator" class="status-indicator"></span>
+          Estado del Bot
+        </h3>
+        <div class="status-row">
+          <span class="status-label">Estado:</span>
+          <span class="status-value" id="botStatusText">Desconectado</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Último heartbeat:</span>
+          <span class="status-value" id="lastHeartbeat">---</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Último análisis:</span>
+          <span class="status-value" id="lastAnalysisTime">---</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Análisis realizados:</span>
+          <span class="status-value ok" id="analysisCount">0</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Velas recibidas:</span>
+          <span class="status-value" id="candlesCount">0</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Cuenta activa:</span>
+          <span class="status-value" id="activeAccount">---</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Tiempo sin análisis:</span>
+          <span class="status-value" id="timeSinceAnalysis">---</span>
+        </div>
+      </div>
+
       <div class="card">
         <h3>🔌 Conexión</h3>
         <div style="text-align: center; margin-bottom: 10px;">
@@ -143,6 +222,9 @@
 const SERVER_URL = "wss://deriv-proxy-hwhi.onrender.com";
 let ws = null;
 let accounts = [];
+let lastHeartbeatTimestamp = null;
+let lastAnalysisTimestamp = null;
+let heartbeatCheckInterval = null;
 
 function log(msg, type = 'info') {
   const container = document.getElementById('logContainer');
@@ -164,6 +246,7 @@ function connect() {
     log("✅ Conectado al servidor", 'success');
     document.getElementById('statusBadge').textContent = 'Conectado';
     document.getElementById('statusBadge').className = 'status-badge status-connected';
+    updateBotStatusPanel();
   };
 
   ws.onmessage = (e) => {
@@ -179,6 +262,7 @@ function connect() {
     log("🔌 Desconectado del servidor", 'error');
     document.getElementById('statusBadge').textContent = 'Desconectado';
     document.getElementById('statusBadge').className = 'status-badge status-disconnected';
+    updateBotStatusPanel();
     setTimeout(connect, 3000);
   };
 
@@ -202,6 +286,8 @@ function handleServerMessage(data) {
   if (data.type === 'CONNECTED') {
     log(`✅ Conectado a cuenta: ${data.account_id}`, 'success');
     document.getElementById('btnStart').disabled = false;
+    document.getElementById('activeAccount').textContent = data.account_id;
+    updateBotStatusPanel();
   }
 
   if (data.type === 'BALANCE_UPDATE') {
@@ -212,15 +298,37 @@ function handleServerMessage(data) {
     document.getElementById('lastScore').textContent = data.score.toFixed(1);
     document.getElementById('lastDirection').textContent = data.direction || 'N/A';
     document.getElementById('lastReason').textContent = data.reason;
+    document.getElementById('analysisCount').textContent = data.analysisCount || '---';
+    lastAnalysisTimestamp = data.timestamp || Date.now();
+    updateBotStatusPanel();
+  }
+
+  if (data.type === 'HEARTBEAT') {
+    lastHeartbeatTimestamp = data.timestamp;
+    document.getElementById('lastHeartbeat').textContent = new Date(data.timestamp).toLocaleTimeString();
+    document.getElementById('analysisCount').textContent = data.analysisCount;
+    document.getElementById('candlesCount').textContent = data.candlesCount;
+    if (data.accountId) document.getElementById('activeAccount').textContent = data.accountId;
+    updateBotStatusPanel();
+  }
+
+  if (data.type === 'CANDLES_UPDATE') {
+    document.getElementById('candlesCount').textContent = data.count;
+    log(`📊 Velas actualizadas: ${data.count}`, 'info');
+  }
+
+  if (data.type === 'NEW_CANDLE') {
+    document.getElementById('candlesCount').textContent = data.count;
+    log(`🕯️ Nueva vela. Total: ${data.count} | Precio: ${data.price.toFixed(2)}`, 'info');
   }
 
   if (data.type === 'TRADE_EXECUTED') {
-    log(`✅ Operación ejecutada: ${data.contractId}`, 'trade');
+    log(`💼 Operación ejecutada: ${data.contractId}`, 'trade');
   }
 
   if (data.type === 'TRADE_RESULT') {
     const result = data.isWin ? 'GANADA' : 'PERDIDA';
-    log(`${data.isWin ? '✅' : '❌'} ${result}: ${data.profit.toFixed(2)}`, data.isWin ? 'success' : 'error');
+    log(`${data.isWin ? '✅' : '❌'} ${result}: $${data.profit.toFixed(2)}`, data.isWin ? 'success' : 'error');
     document.getElementById('tradesToday').textContent = data.stats.tradesToday;
     document.getElementById('wins').textContent = data.stats.wins;
     document.getElementById('losses').textContent = data.stats.losses;
@@ -241,12 +349,14 @@ function handleServerMessage(data) {
     log("🤖 Bot iniciado en el servidor", 'success');
     document.getElementById('btnStart').disabled = true;
     document.getElementById('btnStop').disabled = false;
+    updateBotStatusPanel();
   }
 
   if (data.type === 'BOT_STOPPED') {
     log("🛑 Bot detenido en el servidor", 'error');
     document.getElementById('btnStart').disabled = false;
     document.getElementById('btnStop').disabled = true;
+    updateBotStatusPanel();
   }
 
   if (data.type === 'CONFIG_UPDATED') {
@@ -260,6 +370,85 @@ function handleServerMessage(data) {
   if (data.type === 'ERROR') {
     log(`❌ Error: ${data.message}`, 'error');
   }
+}
+
+// ✅ NUEVO: Actualizar el Panel de Estado del Bot
+function updateBotStatusPanel() {
+  const panel = document.getElementById('botStatusPanel');
+  const indicator = document.getElementById('statusIndicator');
+  const statusText = document.getElementById('botStatusText');
+  const timeSince = document.getElementById('timeSinceAnalysis');
+  
+  const isConnected = ws && ws.readyState === WebSocket.OPEN;
+  const hasAccount = document.getElementById('activeAccount').textContent !== '---';
+  const hasHeartbeat = lastHeartbeatTimestamp !== null;
+  
+  // Determinar estado general
+  let status = 'Desconectado';
+  let statusClass = 'err';
+  let panelClass = 'inactive';
+  let indicatorActive = false;
+  
+  if (isConnected && hasAccount && hasHeartbeat) {
+    const timeSinceHeartbeat = Date.now() - lastHeartbeatTimestamp;
+    if (timeSinceHeartbeat < 15000) {
+      status = '🟢 VIVO y Operando';
+      statusClass = 'ok';
+      panelClass = '';
+      indicatorActive = true;
+    } else {
+      status = '🟡 Conectado (sin heartbeat reciente)';
+      statusClass = 'warn';
+      panelClass = 'inactive';
+    }
+  } else if (isConnected && hasAccount) {
+    status = '🟡 Conectado (esperando datos)';
+    statusClass = 'warn';
+    panelClass = 'inactive';
+  } else if (isConnected) {
+    status = '🟡 Conectado (sin cuenta)';
+    statusClass = 'warn';
+    panelClass = 'inactive';
+  }
+  
+  statusText.textContent = status;
+  statusText.className = `status-value ${statusClass}`;
+  panel.className = `bot-status-panel ${panelClass}`;
+  indicator.className = `status-indicator ${indicatorActive ? 'active' : ''}`;
+  
+  // Calcular tiempo sin análisis
+  if (lastAnalysisTimestamp) {
+    const seconds = Math.floor((Date.now() - lastAnalysisTimestamp) / 1000);
+    if (seconds < 60) {
+      timeSince.textContent = `${seconds}s atrás`;
+      timeSince.className = 'status-value ok';
+    } else if (seconds < 300) {
+      timeSince.textContent = `${Math.floor(seconds/60)}m ${seconds%60}s atrás`;
+      timeSince.className = 'status-value warn';
+    } else {
+      timeSince.textContent = `${Math.floor(seconds/60)}m atrás`;
+      timeSince.className = 'status-value err';
+    }
+  } else {
+    timeSince.textContent = 'Sin análisis aún';
+    timeSince.className = 'status-value';
+  }
+}
+
+// ✅ NUEVO: Verificar heartbeat cada 5 segundos
+function startHeartbeatMonitor() {
+  if (heartbeatCheckInterval) clearInterval(heartbeatCheckInterval);
+  heartbeatCheckInterval = setInterval(() => {
+    updateBotStatusPanel();
+    
+    // Alertar si no hay heartbeat en 30 segundos
+    if (lastHeartbeatTimestamp) {
+      const timeSince = Date.now() - lastHeartbeatTimestamp;
+      if (timeSince > 30000 && timeSince < 35000) {
+        log('⚠️ Sin heartbeat del servidor por 30 segundos', 'error');
+      }
+    }
+  }, 5000);
 }
 
 function connectToAccount() {
@@ -295,6 +484,7 @@ function stopBot() {
 window.onload = () => {
   log("🚀 Panel de control iniciado", 'info');
   connect();
+  startHeartbeatMonitor();
 };
 </script>
 </body>
