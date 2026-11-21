@@ -100,14 +100,9 @@ const StrategyEngine = {
     const durationObj = TA.calculateDuration(candles);
     
     const details = {
-      price: lastClose,
-      ema20: lastEma20,
-      ema50: lastEma50,
-      rsi: lastRsi,
-      bbUpper: lastBBUpper,
-      bbLower: lastBBLower,
-      highest20: Math.max(...highs.slice(-20)),
-      lowest20: Math.min(...lows.slice(-20))
+      price: lastClose, ema20: lastEma20, ema50: lastEma50, rsi: lastRsi,
+      bbUpper: lastBBUpper, bbLower: lastBBLower,
+      highest20: Math.max(...highs.slice(-20)), lowest20: Math.min(...lows.slice(-20))
     };
     
     if (strategy === 'A') {
@@ -130,9 +125,6 @@ const StrategyEngine = {
   }
 };
 
-// ==========================================
-// IA ENSEMBLE
-// ==========================================
 const AIEngine = {
   weights: { ema: 0.3, rsi: 0.25, bb: 0.25, breakout: 0.2 },
   evaluate: (candles) => {
@@ -175,18 +167,12 @@ const AIEngine = {
     if (bbSignal !== 0) reasons.push(`BB ${bbSignal > 0 ? 'sobreventa' : 'sobrecompra'}`);
     if (breakoutSignal !== 0) reasons.push(`Breakout ${breakoutSignal > 0 ? '▲' : '▼'}`);
     const durationObj = TA.calculateDuration(candles);
-    
     const details = {
-      price: lastClose,
-      ema20: lastEma20,
-      ema50: lastEma50,
-      rsi: lastRsi,
-      bbUpper: lastBBUpper,
-      bbLower: lastBBLower,
+      price: lastClose, ema20: lastEma20, ema50: lastEma50, rsi: lastRsi,
+      bbUpper: lastBBUpper, bbLower: lastBBLower,
       emaSignal, rsiSignal, bbSignal, breakoutSignal,
       highest20, lowest20
     };
-    
     return { score: Math.min(100, score), reason: reasons.join(', ') || 'Sin confluencia', direction, duration: durationObj.value, durationUnit: durationObj.unit, indicators: details, details };
   }
 };
@@ -291,6 +277,9 @@ wss.on('connection', async (ws) => {
   let lastPrice = 0;
   let tickCount = 0;
   let heartbeatInterval = null;
+  let watchdogInterval = null; // ✅ NUEVO: Watchdog
+  let reconnectAttempts = 0;
+  const MAX_RECONNECT_ATTEMPTS = 5;
 
   try {
     const accounts = await getAllAccounts();
@@ -301,7 +290,7 @@ wss.on('connection', async (ws) => {
       accounts: accounts.map(a => ({ id: a.account_id, type: a.account_type, balance: parseFloat(a.balance), currency: a.currency, status: a.status }))
     }));
 
-    // ✅ HEARTBEAT cada 5 segundos con estado completo
+    // ✅ HEARTBEAT cada 5 segundos
     heartbeatInterval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ 
@@ -314,10 +303,24 @@ wss.on('connection', async (ws) => {
           accountId: currentAccountId,
           lastPrice: lastPrice,
           tickCount: tickCount,
-          config: botConfig
+          config: botConfig,
+          derivConnected: derivWs && derivWs.readyState === WebSocket.OPEN
         }));
       }
     }, 5000);
+
+    // ✅ WATCHDOG: Verifica que el análisis se esté ejecutando
+    watchdogInterval = setInterval(() => {
+      if (botConfig.isRunning && candles.length >= 50) {
+        const timeSinceLastAnalysis = Date.now() - (lastAnalysisTime || 0);
+        if (timeSinceLastAnalysis > 30000) {
+          console.log(`[${timestamp()}] ⚠️ WATCHDOG: Análisis detenido por ${Math.round(timeSinceLastAnalysis/1000)}s. Reiniciando...`);
+          ws.send(JSON.stringify({ type: 'WATCHDOG_RESTART', reason: 'Análisis detenido' }));
+          if (analysisInterval) clearInterval(analysisInterval);
+          startAnalysis();
+        }
+      }
+    }, 10000);
 
     ws.on('message', async (msg) => {
       try {
@@ -329,45 +332,7 @@ wss.on('connection', async (ws) => {
           currentAccountId = accountId;
           if (derivWs && derivWs.readyState === WebSocket.OPEN) derivWs.close();
 
-          const privateUrl = await getPrivateUrl(accountId);
-          if (!privateUrl) {
-            ws.send(JSON.stringify({ type: 'ERROR', message: `No URL privada para ${accountId}` }));
-            return;
-          }
-
-          console.log(`[${timestamp()}] 🔗 Conectando a Deriv...`);
-          derivWs = new WebSocket(privateUrl, { headers: { 'Deriv-App-ID': DERIV_APP_ID } });
-
-          derivWs.on('open', () => {
-            console.log(`[${timestamp()}] 🟢 Conectado a Deriv (${accountId})`);
-            ws.send(JSON.stringify({ type: 'CONNECTED', account_id: accountId }));
-            
-            const account = accounts.find(a => a.account_id === accountId);
-            const balance = account ? parseFloat(account.balance) : 1000;
-            riskManager = new RiskManager(balance, botConfig.stake);
-            console.log(`[${timestamp()}] 💰 Balance: $${balance.toFixed(2)}`);
-            
-            derivWs.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-            console.log(`[${timestamp()}] 📡 Solicitando velas: ${botConfig.symbol} (${botConfig.granularity}s)`);
-            derivWs.send(JSON.stringify({
-              ticks_history: botConfig.symbol, adjust_start_time: 1, count: 100, end: 'latest',
-              style: 'candles', granularity: botConfig.granularity, subscribe: 1
-            }));
-          });
-
-          derivWs.on('message', (data) => {
-            const parsed = JSON.parse(data.toString());
-            ws.send(data.toString());
-            handleDerivMessage(parsed, derivWs, ws);
-          });
-
-          derivWs.on('close', () => {
-            console.log(`[${timestamp()}] 🔴 Deriv cerró conexión`);
-            ws.send(JSON.stringify({ type: 'DISCONNECTED' }));
-            if (analysisInterval) { clearInterval(analysisInterval); analysisInterval = null; }
-          });
-
-          derivWs.on('error', (err) => console.error(`[${timestamp()}] ❌ Error Deriv:`, err.message));
+          await connectToDeriv(accountId, accounts);
         }
         else if (data.type === 'UPDATE_CONFIG') {
           botConfig = { ...botConfig, ...data.config };
@@ -403,10 +368,74 @@ wss.on('connection', async (ws) => {
       console.log(`[${timestamp()}] ⚪ Cliente desconectado`);
       if (analysisInterval) clearInterval(analysisInterval);
       if (heartbeatInterval) clearInterval(heartbeatInterval);
+      if (watchdogInterval) clearInterval(watchdogInterval);
       if (derivWs && derivWs.readyState === WebSocket.OPEN) derivWs.close();
     });
   } catch (error) {
     console.error(`[${timestamp()}] ❌ Error crítico:`, error.message);
+  }
+
+  // ==========================================
+  // CONEXIÓN A DERIV CON REINTENTOS
+  // ==========================================
+  async function connectToDeriv(accountId, accounts) {
+    reconnectAttempts++;
+    if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+      console.log(`[${timestamp()}] ❌ Máximo de intentos de reconexión alcanzado`);
+      ws.send(JSON.stringify({ type: 'ERROR', message: 'No se pudo conectar a Deriv' }));
+      return;
+    }
+
+    const privateUrl = await getPrivateUrl(accountId);
+    if (!privateUrl) {
+      console.log(`[${timestamp()}] ❌ No URL privada para ${accountId}`);
+      ws.send(JSON.stringify({ type: 'ERROR', message: `No URL privada para ${accountId}` }));
+      return;
+    }
+
+    console.log(`[${timestamp()}] 🔗 Conectando a Deriv (intento ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+    
+    derivWs = new WebSocket(privateUrl, { headers: { 'Deriv-App-ID': DERIV_APP_ID } });
+
+    derivWs.on('open', () => {
+      console.log(`[${timestamp()}] 🟢 Conectado a Deriv (${accountId})`);
+      reconnectAttempts = 0; // Resetear intentos
+      ws.send(JSON.stringify({ type: 'CONNECTED', account_id: accountId }));
+      
+      const account = accounts.find(a => a.account_id === accountId);
+      const balance = account ? parseFloat(account.balance) : 1000;
+      riskManager = new RiskManager(balance, botConfig.stake);
+      console.log(`[${timestamp()}] 💰 Balance: $${balance.toFixed(2)}`);
+      
+      derivWs.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+      console.log(`[${timestamp()}] 📡 Solicitando velas: ${botConfig.symbol} (${botConfig.granularity}s)`);
+      derivWs.send(JSON.stringify({
+        ticks_history: botConfig.symbol, adjust_start_time: 1, count: 100, end: 'latest',
+        style: 'candles', granularity: botConfig.granularity, subscribe: 1
+      }));
+    });
+
+    derivWs.on('message', (data) => {
+      const parsed = JSON.parse(data.toString());
+      ws.send(data.toString());
+      handleDerivMessage(parsed, derivWs, ws);
+    });
+
+    derivWs.on('close', () => {
+      console.log(`[${timestamp()}] 🔴 Deriv cerró conexión`);
+      ws.send(JSON.stringify({ type: 'DISCONNECTED' }));
+      if (analysisInterval) { clearInterval(analysisInterval); analysisInterval = null; }
+      
+      // ✅ RECONEXIÓN AUTOMÁTICA
+      if (currentAccountId && botConfig.isRunning) {
+        console.log(`[${timestamp()}] 🔄 Reconectando a Deriv en 3 segundos...`);
+        setTimeout(() => connectToDeriv(currentAccountId, accounts), 3000);
+      }
+    });
+
+    derivWs.on('error', (err) => {
+      console.error(`[${timestamp()}] ❌ Error Deriv:`, err.message);
+    });
   }
 
   // ==========================================
@@ -446,13 +475,9 @@ wss.on('connection', async (ws) => {
         }
       }
       
-      // ✅ Enviar tick en tiempo real al panel
       clientWs.send(JSON.stringify({ 
-        type: 'TICK', 
-        price: lastPrice, 
-        tickCount: tickCount,
-        candlesCount: candles.length,
-        timestamp: Date.now()
+        type: 'TICK', price: lastPrice, tickCount: tickCount,
+        candlesCount: candles.length, timestamp: Date.now()
       }));
     }
 
@@ -492,7 +517,7 @@ wss.on('connection', async (ws) => {
   }
 
   // ==========================================
-  // CICLO DE ANÁLISIS
+  // CICLO DE ANÁLISIS CON WATCHDOG
   // ==========================================
   function startAnalysis() {
     if (analysisInterval) clearInterval(analysisInterval);
@@ -506,29 +531,30 @@ wss.on('connection', async (ws) => {
         return;
       }
       
-      if (!riskManager) return;
+      if (!riskManager) {
+        console.log(`[${timestamp()}] ⚠️ RiskManager no inicializado`);
+        return;
+      }
 
       analysisCount++;
       lastAnalysisTime = Date.now();
 
       let eval;
-      if (botConfig.strategy === 'AI') eval = AIEngine.evaluate(candles);
-      else eval = StrategyEngine.evaluate(botConfig.strategy, candles);
+      try {
+        if (botConfig.strategy === 'AI') eval = AIEngine.evaluate(candles);
+        else eval = StrategyEngine.evaluate(botConfig.strategy, candles);
+      } catch (err) {
+        console.error(`[${timestamp()}] ❌ Error en análisis:`, err.message);
+        return;
+      }
       
-      // ✅ LOG DETALLADO en servidor
       console.log(`[${timestamp()}] 📊 ANÁLISIS #${analysisCount} | Score: ${eval.score.toFixed(1)} | Dir: ${eval.direction || 'N/A'} | ${eval.reason}`);
       
-      // ✅ Enviar análisis detallado al panel
       clientWs.send(JSON.stringify({ 
-        type: 'ANALYSIS', 
-        score: eval.score, 
-        direction: eval.direction,
-        reason: eval.reason,
-        details: eval.details,
-        analysisCount: analysisCount,
-        timestamp: Date.now(),
-        threshold: botConfig.threshold,
-        strategy: botConfig.strategy
+        type: 'ANALYSIS', score: eval.score, direction: eval.direction,
+        reason: eval.reason, details: eval.details,
+        analysisCount: analysisCount, timestamp: Date.now(),
+        threshold: botConfig.threshold, strategy: botConfig.strategy
       }));
 
       if (eval.score >= botConfig.threshold && eval.direction) {
