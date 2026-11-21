@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Deriv Pro Trader - Panel de Control</title>
+<title>Deriv Pro Trader - Panel en Vivo</title>
 <style>
   :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --green: #2ea043; --red: #da3633; --blue: #58a6ff; --yellow: #d29922; --purple: #a371f7; }
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
@@ -22,58 +22,99 @@
   .status-badge { display: inline-block; padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: bold; }
   .status-connected { background: #1a4d2e; color: var(--green); }
   .status-disconnected { background: #4d1a1a; color: var(--red); }
-  .log-container { height: 300px; overflow-y: auto; background: #010409; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 11px; }
-  .log-entry { margin-bottom: 3px; padding-left: 5px; border-left: 2px solid var(--border); }
+  
+  /* ✅ LOG DETALLADO */
+  .log-container { height: 400px; overflow-y: auto; background: #010409; padding: 10px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 11px; }
+  .log-entry { margin-bottom: 2px; padding: 3px 5px; border-left: 3px solid var(--border); }
   .log-info { border-color: var(--blue); color: var(--blue); }
   .log-success { border-color: var(--green); color: var(--green); font-weight: bold; }
   .log-error { border-color: var(--red); color: var(--red); }
-  .log-trade { border-color: var(--yellow); color: var(--yellow); }
-  .log-heartbeat { border-color: var(--purple); color: var(--purple); }
+  .log-trade { border-color: var(--yellow); color: var(--yellow); font-weight: bold; }
+  .log-analysis { border-color: var(--purple); color: #d4b3ff; background: rgba(163, 113, 247, 0.05); }
+  .log-tick { border-color: #8b949e; color: #8b949e; font-size: 10px; }
+  .log-heartbeat { border-color: #00ffff; color: #00ffff; }
+  .log-signal { border-color: var(--green); color: var(--green); background: rgba(46, 160, 67, 0.1); font-weight: bold; }
+  
   .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .stat-item { background: var(--bg); padding: 8px; border-radius: 4px; }
   .stat-label { font-size: 10px; color: #8b949e; }
   .stat-value { font-size: 14px; font-weight: bold; color: var(--green); }
   .stat-value.red { color: var(--red); }
   
-  /* ✅ NUEVO: Panel de Estado del Bot */
-  .bot-status-panel { 
-    background: linear-gradient(135deg, #1a4d2e 0%, #0d1117 100%); 
+  /* ✅ PULSO VISUAL */
+  .pulse-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 15px;
+    background: var(--bg);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+  }
+  .pulse-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--red);
+    margin-right: 15px;
+    transition: all 0.3s;
+  }
+  .pulse-dot.active {
+    background: var(--green);
+    animation: heartbeat 1s infinite;
+  }
+  @keyframes heartbeat {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(46, 160, 67, 0.7); }
+    50% { transform: scale(1.2); box-shadow: 0 0 0 15px rgba(46, 160, 67, 0); }
+  }
+  .pulse-text { font-size: 14px; font-weight: bold; }
+  .pulse-text.active { color: var(--green); }
+  .pulse-text.inactive { color: var(--red); }
+  
+  /* ✅ TICKER DE PRECIO EN VIVO */
+  .price-ticker {
+    background: linear-gradient(135deg, #1a4d2e 0%, #0d1117 100%);
     border: 2px solid var(--green);
     border-radius: 8px;
     padding: 15px;
+    text-align: center;
     margin-bottom: 15px;
   }
-  .bot-status-panel.inactive {
-    background: linear-gradient(135deg, #4d1a1a 0%, #0d1117 100%);
-    border-color: var(--red);
+  .price-value {
+    font-size: 36px;
+    font-weight: bold;
+    color: var(--green);
+    font-family: 'Courier New', monospace;
+    transition: color 0.3s;
   }
-  .status-indicator {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--red);
-    margin-right: 8px;
-    animation: none;
+  .price-value.up { color: var(--green); }
+  .price-value.down { color: var(--red); }
+  .price-label { font-size: 11px; color: #8b949e; margin-top: 5px; }
+  .price-change { font-size: 12px; margin-top: 5px; }
+  
+  /* ✅ INDICADORES DETALLADOS */
+  .indicators-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-top: 10px;
   }
-  .status-indicator.active {
-    background: var(--green);
-    animation: pulse 1.5s infinite;
+  .indicator-item {
+    background: var(--bg);
+    padding: 6px;
+    border-radius: 4px;
+    font-size: 10px;
   }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(46, 160, 67, 0.7); }
-    50% { opacity: 0.8; box-shadow: 0 0 0 8px rgba(46, 160, 67, 0); }
-  }
-  .status-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    font-size: 12px;
-  }
+  .indicator-label { color: #8b949e; font-size: 9px; }
+  .indicator-val { font-weight: bold; color: var(--text); font-family: 'Courier New', monospace; }
+  
+  .bot-status-panel { background: linear-gradient(135deg, #1a4d2e 0%, #0d1117 100%); border: 2px solid var(--green); border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+  .bot-status-panel.inactive { background: linear-gradient(135deg, #4d1a1a 0%, #0d1117 100%); border-color: var(--red); }
+  .status-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 11px; }
   .status-row:last-child { border-bottom: none; }
   .status-label { color: #8b949e; }
-  .status-value { font-weight: bold; color: var(--text); }
+  .status-value { font-weight: bold; }
   .status-value.ok { color: var(--green); }
   .status-value.warn { color: var(--yellow); }
   .status-value.err { color: var(--red); }
@@ -82,40 +123,54 @@
 <body>
 
 <div class="container">
+  <!-- ✅ TICKER DE PRECIO EN VIVO -->
+  <div class="price-ticker">
+    <div class="price-label">💹 PRECIO EN VIVO - <span id="symbolLabel">R_75</span></div>
+    <div class="price-value" id="livePrice">0.0000</div>
+    <div class="price-change" id="priceChange">Esperando datos...</div>
+  </div>
+
   <div class="grid">
     <div>
-      <!-- ✅ NUEVO: Panel de Estado del Bot (siempre visible) -->
+      <!-- ✅ PULSO VISUAL -->
+      <div class="pulse-container">
+        <div class="pulse-dot" id="pulseDot"></div>
+        <div class="pulse-text inactive" id="pulseText">BOT INACTIVO</div>
+      </div>
+
+      <!-- ✅ PANEL DE ESTADO -->
       <div id="botStatusPanel" class="bot-status-panel inactive">
-        <h3 style="color: white; border-bottom: 1px solid rgba(255,255,255,0.2);">
-          <span id="statusIndicator" class="status-indicator"></span>
-          Estado del Bot
-        </h3>
+        <h3 style="color: white;">🔍 Estado del Bot</h3>
         <div class="status-row">
           <span class="status-label">Estado:</span>
           <span class="status-value" id="botStatusText">Desconectado</span>
         </div>
         <div class="status-row">
-          <span class="status-label">Último heartbeat:</span>
-          <span class="status-value" id="lastHeartbeat">---</span>
+          <span class="status-label">Cuenta:</span>
+          <span class="status-value" id="activeAccount">---</span>
         </div>
         <div class="status-row">
-          <span class="status-label">Último análisis:</span>
-          <span class="status-value" id="lastAnalysisTime">---</span>
+          <span class="status-label">Estrategia:</span>
+          <span class="status-value" id="activeStrategy">---</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Umbral:</span>
+          <span class="status-value" id="activeThreshold">---</span>
         </div>
         <div class="status-row">
           <span class="status-label">Análisis realizados:</span>
           <span class="status-value ok" id="analysisCount">0</span>
         </div>
         <div class="status-row">
-          <span class="status-label">Velas recibidas:</span>
+          <span class="status-label">Ticks recibidos:</span>
+          <span class="status-value" id="tickCount">0</span>
+        </div>
+        <div class="status-row">
+          <span class="status-label">Velas:</span>
           <span class="status-value" id="candlesCount">0</span>
         </div>
         <div class="status-row">
-          <span class="status-label">Cuenta activa:</span>
-          <span class="status-value" id="activeAccount">---</span>
-        </div>
-        <div class="status-row">
-          <span class="status-label">Tiempo sin análisis:</span>
+          <span class="status-label">Último análisis:</span>
           <span class="status-value" id="timeSinceAnalysis">---</span>
         </div>
       </div>
@@ -127,22 +182,20 @@
         </div>
         <div class="form-group">
           <label>Cuenta</label>
-          <select id="accountSelect">
-            <option value="">Selecciona una cuenta...</option>
-          </select>
+          <select id="accountSelect"><option value="">Selecciona...</option></select>
         </div>
         <button class="btn btn-primary" onclick="connectToAccount()">Conectar</button>
       </div>
 
       <div class="card">
-        <h3>⚙️ Configuración del Bot</h3>
+        <h3>⚙️ Configuración</h3>
         <div class="form-group">
           <label>Estrategia</label>
           <select id="strategy">
-            <option value="A">A - Tendencia (EMA + RSI)</option>
-            <option value="B">B - Reversión (Bollinger + RSI)</option>
-            <option value="C">C - Breakout (Ruptura de rango)</option>
-            <option value="AI" selected>🤖 Ensemble IA (Recomendado)</option>
+            <option value="A">A - Tendencia</option>
+            <option value="B">B - Reversión</option>
+            <option value="C">C - Breakout</option>
+            <option value="AI" selected>🤖 Ensemble IA</option>
           </select>
         </div>
         <div class="form-group">
@@ -164,27 +217,27 @@
           </select>
         </div>
         <div class="form-group">
-          <label>Umbral de Score (mínimo para operar)</label>
+          <label>Umbral</label>
           <input type="number" id="threshold" value="75" min="30" max="90" step="5">
         </div>
         <div class="form-group">
           <label>Modo</label>
           <select id="mode">
-            <option value="sim" selected>Simulación (Solo señales)</option>
-            <option value="live">Real (Opera con dinero)</option>
+            <option value="sim" selected>Simulación</option>
+            <option value="live">Real</option>
           </select>
         </div>
         <div class="form-group">
-          <label>Stake Base ($)</label>
+          <label>Stake ($)</label>
           <input type="number" id="stake" value="0.35" min="0.35" step="0.01">
         </div>
-        <button class="btn btn-primary" onclick="updateConfig()">💾 Guardar Configuración</button>
+        <button class="btn btn-primary" onclick="updateConfig()">💾 Guardar</button>
       </div>
 
       <div class="card">
-        <h3>🤖 Control del Bot</h3>
-        <button id="btnStart" class="btn btn-primary" onclick="startBot()" disabled>▶ INICIAR BOT</button>
-        <button id="btnStop" class="btn btn-danger" onclick="stopBot()" disabled>🛑 DETENER BOT</button>
+        <h3>🤖 Control</h3>
+        <button id="btnStart" class="btn btn-primary" onclick="startBot()" disabled>▶ INICIAR</button>
+        <button id="btnStop" class="btn btn-danger" onclick="stopBot()" disabled>🛑 DETENER</button>
       </div>
     </div>
 
@@ -193,25 +246,33 @@
         <h3>📊 Estadísticas</h3>
         <div class="stats-grid">
           <div class="stat-item"><div class="stat-label">Saldo</div><div class="stat-value" id="balance">---</div></div>
-          <div class="stat-item"><div class="stat-label">Trades Hoy</div><div class="stat-value" id="tradesToday">0</div></div>
+          <div class="stat-item"><div class="stat-label">Trades</div><div class="stat-value" id="tradesToday">0</div></div>
           <div class="stat-item"><div class="stat-label">Ganadas</div><div class="stat-value" id="wins">0</div></div>
           <div class="stat-item"><div class="stat-label">Perdidas</div><div class="stat-value red" id="losses">0</div></div>
           <div class="stat-item"><div class="stat-label">Racha</div><div class="stat-value red" id="lossStreak">0</div></div>
-          <div class="stat-item"><div class="stat-label">Stake Actual</div><div class="stat-value" id="currentStake">0.35</div></div>
+          <div class="stat-item"><div class="stat-label">Stake</div><div class="stat-value" id="currentStake">0.35</div></div>
         </div>
       </div>
 
+      <!-- ✅ INDICADORES DETALLADOS -->
       <div class="card">
-        <h3>📈 Último Análisis</h3>
-        <div style="text-align: center; padding: 10px;">
-          <div style="font-size: 32px; font-weight: bold; color: var(--yellow);" id="lastScore">0</div>
-          <div style="font-size: 11px; color: #8b949e;" id="lastDirection">Esperando...</div>
-          <div style="font-size: 11px; color: #8b949e; margin-top: 5px;" id="lastReason">---</div>
+        <h3>📈 Indicadores en Vivo</h3>
+        <div class="indicators-grid">
+          <div class="indicator-item"><div class="indicator-label">EMA 20</div><div class="indicator-val" id="indEMA20">---</div></div>
+          <div class="indicator-item"><div class="indicator-label">EMA 50</div><div class="indicator-val" id="indEMA50">---</div></div>
+          <div class="indicator-item"><div class="indicator-label">RSI</div><div class="indicator-val" id="indRSI">---</div></div>
+          <div class="indicator-item"><div class="indicator-label">BB Sup</div><div class="indicator-val" id="indBBUp">---</div></div>
+          <div class="indicator-item"><div class="indicator-label">BB Inf</div><div class="indicator-val" id="indBBDown">---</div></div>
+          <div class="indicator-item"><div class="indicator-label">Máx 20</div><div class="indicator-val" id="indHigh">---</div></div>
+          <div class="indicator-item"><div class="indicator-label">Mín 20</div><div class="indicator-val" id="indLow">---</div></div>
+          <div class="indicator-item"><div class="indicator-label">Score</div><div class="indicator-val" id="indScore">0</div></div>
+          <div class="indicator-item"><div class="indicator-label">Señal</div><div class="indicator-val" id="indSignal">---</div></div>
         </div>
       </div>
 
+      <!-- ✅ LOG DETALLADO EN TIEMPO REAL -->
       <div class="card">
-        <h3>📝 Log del Servidor</h3>
+        <h3>📝 Log en Tiempo Real</h3>
         <div class="log-container" id="logContainer"></div>
       </div>
     </div>
@@ -224,7 +285,9 @@ let ws = null;
 let accounts = [];
 let lastHeartbeatTimestamp = null;
 let lastAnalysisTimestamp = null;
-let heartbeatCheckInterval = null;
+let lastPrice = 0;
+let prevPrice = 0;
+let analysisTimer = null;
 
 function log(msg, type = 'info') {
   const container = document.getElementById('logContainer');
@@ -233,12 +296,11 @@ function log(msg, type = 'info') {
   div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
-  while (container.children.length > 100) container.removeChild(container.firstChild);
+  while (container.children.length > 200) container.removeChild(container.firstChild);
 }
 
 function connect() {
   if (ws && ws.readyState === WebSocket.OPEN) return;
-  
   log("Conectando al servidor...", 'info');
   ws = new WebSocket(SERVER_URL);
 
@@ -250,16 +312,12 @@ function connect() {
   };
 
   ws.onmessage = (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      handleServerMessage(data);
-    } catch (err) {
-      log(`Error parseando: ${err.message}`, 'error');
-    }
+    try { handleServerMessage(JSON.parse(e.data)); } 
+    catch (err) { log(`Error: ${err.message}`, 'error'); }
   };
 
   ws.onclose = () => {
-    log("🔌 Desconectado del servidor", 'error');
+    log("🔌 Desconectado", 'error');
     document.getElementById('statusBadge').textContent = 'Desconectado';
     document.getElementById('statusBadge').className = 'status-badge status-disconnected';
     updateBotStatusPanel();
@@ -273,11 +331,11 @@ function handleServerMessage(data) {
   if (data.type === 'ACCOUNTS_LIST') {
     accounts = data.accounts;
     const select = document.getElementById('accountSelect');
-    select.innerHTML = '<option value="">Selecciona una cuenta...</option>';
+    select.innerHTML = '<option value="">Selecciona...</option>';
     accounts.forEach(acc => {
       const option = document.createElement('option');
       option.value = acc.id;
-      option.textContent = `${acc.type.toUpperCase()} - ${acc.balance} ${acc.currency} (${acc.id})`;
+      option.textContent = `${acc.type.toUpperCase()} - $${acc.balance} ${acc.currency} (${acc.id})`;
       select.appendChild(option);
     });
     log(`📋 ${accounts.length} cuentas disponibles`, 'info');
@@ -294,36 +352,73 @@ function handleServerMessage(data) {
     document.getElementById('balance').textContent = data.balance.toFixed(2);
   }
 
+  // ✅ TICK EN TIEMPO REAL - Actualiza precio cada tick
+  if (data.type === 'TICK') {
+    prevPrice = lastPrice;
+    lastPrice = data.price;
+    updatePriceTicker();
+    document.getElementById('tickCount').textContent = data.tickCount;
+    document.getElementById('candlesCount').textContent = data.candlesCount;
+    
+    // Log de tick cada 10 ticks para no saturar
+    if (data.tickCount % 10 === 0) {
+      log(`💹 Tick #${data.tickCount} | Precio: ${data.price.toFixed(4)}`, 'tick');
+    }
+  }
+
+  // ✅ ANÁLISIS DETALLADO
   if (data.type === 'ANALYSIS') {
-    document.getElementById('lastScore').textContent = data.score.toFixed(1);
-    document.getElementById('lastDirection').textContent = data.direction || 'N/A';
-    document.getElementById('lastReason').textContent = data.reason;
-    document.getElementById('analysisCount').textContent = data.analysisCount || '---';
-    lastAnalysisTimestamp = data.timestamp || Date.now();
+    document.getElementById('analysisCount').textContent = data.analysisCount;
+    lastAnalysisTimestamp = data.timestamp;
+    
+    // Actualizar indicadores visuales
+    if (data.details) {
+      const d = data.details;
+      document.getElementById('indEMA20').textContent = d.ema20 ? d.ema20.toFixed(2) : '---';
+      document.getElementById('indEMA50').textContent = d.ema50 ? d.ema50.toFixed(2) : '---';
+      document.getElementById('indRSI').textContent = d.rsi ? d.rsi.toFixed(1) : '---';
+      document.getElementById('indBBUp').textContent = d.bbUpper ? d.bbUpper.toFixed(2) : '---';
+      document.getElementById('indBBDown').textContent = d.bbLower ? d.bbLower.toFixed(2) : '---';
+      document.getElementById('indHigh').textContent = d.highest20 ? d.highest20.toFixed(2) : '---';
+      document.getElementById('indLow').textContent = d.lowest20 ? d.lowest20.toFixed(2) : '---';
+    }
+    
+    document.getElementById('indScore').textContent = data.score.toFixed(1);
+    document.getElementById('indSignal').textContent = data.direction || 'N/A';
+    
+    // ✅ LOG DETALLADO de cada análisis
+    const emoji = data.score >= data.threshold ? '🎯' : data.score >= 40 ? '📊' : '⚪';
+    log(`${emoji} ANÁLISIS #${data.analysisCount} | Score: ${data.score.toFixed(1)}/${data.threshold} | ${data.direction || 'N/A'} | ${data.reason}`, 'analysis');
+    
     updateBotStatusPanel();
   }
 
   if (data.type === 'HEARTBEAT') {
     lastHeartbeatTimestamp = data.timestamp;
-    document.getElementById('lastHeartbeat').textContent = new Date(data.timestamp).toLocaleTimeString();
-    document.getElementById('analysisCount').textContent = data.analysisCount;
-    document.getElementById('candlesCount').textContent = data.candlesCount;
-    if (data.accountId) document.getElementById('activeAccount').textContent = data.accountId;
+    if (data.lastPrice) {
+      prevPrice = lastPrice;
+      lastPrice = data.lastPrice;
+      updatePriceTicker();
+    }
+    if (data.config) {
+      document.getElementById('activeStrategy').textContent = data.config.strategy;
+      document.getElementById('activeThreshold').textContent = data.config.threshold;
+      document.getElementById('symbolLabel').textContent = data.config.symbol;
+    }
     updateBotStatusPanel();
   }
 
   if (data.type === 'CANDLES_UPDATE') {
     document.getElementById('candlesCount').textContent = data.count;
-    log(`📊 Velas actualizadas: ${data.count}`, 'info');
-  }
-
-  if (data.type === 'NEW_CANDLE') {
-    document.getElementById('candlesCount').textContent = data.count;
-    log(`🕯️ Nueva vela. Total: ${data.count} | Precio: ${data.price.toFixed(2)}`, 'info');
+    if (data.lastPrice) {
+      lastPrice = data.lastPrice;
+      updatePriceTicker();
+    }
+    log(`📊 Velas: ${data.count} | Precio: ${data.lastPrice?.toFixed(4) || '---'}`, 'info');
   }
 
   if (data.type === 'TRADE_EXECUTED') {
-    log(`💼 Operación ejecutada: ${data.contractId}`, 'trade');
+    log(`💼 OPERACIÓN EJECUTADA: ${data.contractId}`, 'trade');
   }
 
   if (data.type === 'TRADE_RESULT') {
@@ -338,7 +433,7 @@ function handleServerMessage(data) {
   }
 
   if (data.type === 'SIMULATION_SIGNAL') {
-    log(`🎯 [SIM] Señal: ${data.direction} | Score: ${data.score.toFixed(1)}`, 'trade');
+    log(`🎯 SEÑAL SIMULACIÓN: ${data.direction} | Score: ${data.score.toFixed(1)}`, 'signal');
   }
 
   if (data.type === 'SIGNAL_IGNORED') {
@@ -346,36 +441,73 @@ function handleServerMessage(data) {
   }
 
   if (data.type === 'BOT_STARTED') {
-    log("🤖 Bot iniciado en el servidor", 'success');
+    log("🤖 BOT INICIADO - Analizando cada 5 segundos", 'success');
     document.getElementById('btnStart').disabled = true;
     document.getElementById('btnStop').disabled = false;
+    startPulse();
     updateBotStatusPanel();
   }
 
   if (data.type === 'BOT_STOPPED') {
-    log("🛑 Bot detenido en el servidor", 'error');
+    log("🛑 BOT DETENIDO", 'error');
     document.getElementById('btnStart').disabled = false;
     document.getElementById('btnStop').disabled = true;
+    stopPulse();
     updateBotStatusPanel();
   }
 
   if (data.type === 'CONFIG_UPDATED') {
-    log("⚙️ Configuración actualizada en el servidor", 'info');
+    log("⚙️ Configuración actualizada", 'info');
   }
 
-  if (data.type === 'PROPOSAL_ERROR' || data.type === 'BUY_ERROR') {
-    log(`❌ Error: ${data.message}`, 'error');
-  }
-
-  if (data.type === 'ERROR') {
+  if (data.type === 'PROPOSAL_ERROR' || data.type === 'BUY_ERROR' || data.type === 'ERROR') {
     log(`❌ Error: ${data.message}`, 'error');
   }
 }
 
-// ✅ NUEVO: Actualizar el Panel de Estado del Bot
+// ✅ ACTUALIZAR TICKER DE PRECIO
+function updatePriceTicker() {
+  const priceEl = document.getElementById('livePrice');
+  const changeEl = document.getElementById('priceChange');
+  
+  priceEl.textContent = lastPrice.toFixed(4);
+  
+  if (prevPrice > 0 && lastPrice !== prevPrice) {
+    if (lastPrice > prevPrice) {
+      priceEl.className = 'price-value up';
+      changeEl.innerHTML = `<span style="color: var(--green);">▲ +${(lastPrice - prevPrice).toFixed(4)}</span>`;
+    } else {
+      priceEl.className = 'price-value down';
+      changeEl.innerHTML = `<span style="color: var(--red);">▼ ${(lastPrice - prevPrice).toFixed(4)}</span>`;
+    }
+  }
+}
+
+// ✅ PULSO VISUAL
+let pulseInterval = null;
+function startPulse() {
+  document.getElementById('pulseDot').className = 'pulse-dot active';
+  document.getElementById('pulseText').className = 'pulse-text active';
+  document.getElementById('pulseText').textContent = '🟢 BOT ACTIVO - Analizando...';
+  
+  if (pulseInterval) clearInterval(pulseInterval);
+  pulseInterval = setInterval(() => {
+    const dot = document.getElementById('pulseDot');
+    dot.style.transform = 'scale(1.3)';
+    setTimeout(() => dot.style.transform = 'scale(1)', 300);
+  }, 1000);
+}
+
+function stopPulse() {
+  document.getElementById('pulseDot').className = 'pulse-dot';
+  document.getElementById('pulseText').className = 'pulse-text inactive';
+  document.getElementById('pulseText').textContent = '🔴 BOT INACTIVO';
+  if (pulseInterval) { clearInterval(pulseInterval); pulseInterval = null; }
+}
+
+// ✅ ACTUALIZAR PANEL DE ESTADO
 function updateBotStatusPanel() {
   const panel = document.getElementById('botStatusPanel');
-  const indicator = document.getElementById('statusIndicator');
   const statusText = document.getElementById('botStatusText');
   const timeSince = document.getElementById('timeSinceAnalysis');
   
@@ -383,11 +515,9 @@ function updateBotStatusPanel() {
   const hasAccount = document.getElementById('activeAccount').textContent !== '---';
   const hasHeartbeat = lastHeartbeatTimestamp !== null;
   
-  // Determinar estado general
   let status = 'Desconectado';
   let statusClass = 'err';
   let panelClass = 'inactive';
-  let indicatorActive = false;
   
   if (isConnected && hasAccount && hasHeartbeat) {
     const timeSinceHeartbeat = Date.now() - lastHeartbeatTimestamp;
@@ -395,39 +525,30 @@ function updateBotStatusPanel() {
       status = '🟢 VIVO y Operando';
       statusClass = 'ok';
       panelClass = '';
-      indicatorActive = true;
     } else {
-      status = '🟡 Conectado (sin heartbeat reciente)';
+      status = '🟡 Conectado (sin heartbeat)';
       statusClass = 'warn';
-      panelClass = 'inactive';
     }
   } else if (isConnected && hasAccount) {
     status = '🟡 Conectado (esperando datos)';
     statusClass = 'warn';
-    panelClass = 'inactive';
   } else if (isConnected) {
     status = '🟡 Conectado (sin cuenta)';
     statusClass = 'warn';
-    panelClass = 'inactive';
   }
   
   statusText.textContent = status;
   statusText.className = `status-value ${statusClass}`;
   panel.className = `bot-status-panel ${panelClass}`;
-  indicator.className = `status-indicator ${indicatorActive ? 'active' : ''}`;
   
-  // Calcular tiempo sin análisis
   if (lastAnalysisTimestamp) {
     const seconds = Math.floor((Date.now() - lastAnalysisTimestamp) / 1000);
     if (seconds < 60) {
       timeSince.textContent = `${seconds}s atrás`;
       timeSince.className = 'status-value ok';
-    } else if (seconds < 300) {
-      timeSince.textContent = `${Math.floor(seconds/60)}m ${seconds%60}s atrás`;
-      timeSince.className = 'status-value warn';
     } else {
-      timeSince.textContent = `${Math.floor(seconds/60)}m atrás`;
-      timeSince.className = 'status-value err';
+      timeSince.textContent = `${Math.floor(seconds/60)}m ${seconds%60}s atrás`;
+      timeSince.className = seconds < 300 ? 'status-value warn' : 'status-value err';
     }
   } else {
     timeSince.textContent = 'Sin análisis aún';
@@ -435,28 +556,24 @@ function updateBotStatusPanel() {
   }
 }
 
-// ✅ NUEVO: Verificar heartbeat cada 5 segundos
-function startHeartbeatMonitor() {
-  if (heartbeatCheckInterval) clearInterval(heartbeatCheckInterval);
-  heartbeatCheckInterval = setInterval(() => {
-    updateBotStatusPanel();
-    
-    // Alertar si no hay heartbeat en 30 segundos
-    if (lastHeartbeatTimestamp) {
-      const timeSince = Date.now() - lastHeartbeatTimestamp;
-      if (timeSince > 30000 && timeSince < 35000) {
-        log('⚠️ Sin heartbeat del servidor por 30 segundos', 'error');
-      }
+// ✅ Timer para actualizar "tiempo desde último análisis" cada segundo
+setInterval(() => {
+  if (lastAnalysisTimestamp) {
+    const seconds = Math.floor((Date.now() - lastAnalysisTimestamp) / 1000);
+    const timeSince = document.getElementById('timeSinceAnalysis');
+    if (seconds < 60) {
+      timeSince.textContent = `${seconds}s atrás`;
+      timeSince.className = 'status-value ok';
+    } else {
+      timeSince.textContent = `${Math.floor(seconds/60)}m ${seconds%60}s atrás`;
+      timeSince.className = seconds < 300 ? 'status-value warn' : 'status-value err';
     }
-  }, 5000);
-}
+  }
+}, 1000);
 
 function connectToAccount() {
   const accountId = document.getElementById('accountSelect').value;
-  if (!accountId) {
-    log("⚠️ Selecciona una cuenta primero", 'error');
-    return;
-  }
+  if (!accountId) { log("⚠️ Selecciona una cuenta", 'error'); return; }
   ws.send(JSON.stringify({ type: 'SELECT_ACCOUNT', account_id: accountId }));
 }
 
@@ -473,18 +590,12 @@ function updateConfig() {
   log(`⚙️ Enviando configuración: ${JSON.stringify(config)}`, 'info');
 }
 
-function startBot() {
-  ws.send(JSON.stringify({ type: 'START_BOT' }));
-}
-
-function stopBot() {
-  ws.send(JSON.stringify({ type: 'STOP_BOT' }));
-}
+function startBot() { ws.send(JSON.stringify({ type: 'START_BOT' })); }
+function stopBot() { ws.send(JSON.stringify({ type: 'STOP_BOT' })); }
 
 window.onload = () => {
-  log("🚀 Panel de control iniciado", 'info');
+  log("🚀 Panel iniciado con logs detallados", 'info');
   connect();
-  startHeartbeatMonitor();
 };
 </script>
 </body>
