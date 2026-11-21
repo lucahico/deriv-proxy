@@ -9,7 +9,6 @@ const wss = new WebSocket.Server({ port: PORT });
 
 console.log(`🚀 [SERVER] Bot Autónomo iniciado en puerto ${PORT}`);
 
-// Manejo de errores global
 process.on('unhandledRejection', (err) => {
   console.error('❌ [SERVER] Error no manejado:', err.message);
 });
@@ -69,7 +68,7 @@ const TA = {
     const closes = candles.map(c => c.close);
     const atr = TA.atr(candles.map(c=>c.high), candles.map(c=>c.low), closes, 14);
     const lastATR = atr[atr.length - 1] || 0;
-    const lastClose = closes[candles.length - 1];
+    const lastClose = closes[closes.length - 1];
     const volRatio = lastATR / lastClose;
     if (volRatio > 0.005) return { value: 5, unit: 't' };
     if (volRatio > 0.002) return { value: 10, unit: 't' };
@@ -78,11 +77,11 @@ const TA = {
 };
 
 // ==========================================
-// ESTRATEGIAS TRADICIONALES
+// ESTRATEGIAS
 // ==========================================
 const StrategyEngine = {
   evaluate: (strategy, candles) => {
-    if (candles.length < 50) return { score: 0, reason: "Datos insuficientes", direction: null, duration: 5, durationUnit: 't' };
+    if (candles.length < 50) return { score: 0, reason: "Datos insuficientes", direction: null, duration: 5, durationUnit: 't', details: {} };
     const closes = candles.map(c => c.close);
     const highs = candles.map(c => c.high);
     const lows = candles.map(c => c.low);
@@ -91,7 +90,7 @@ const StrategyEngine = {
     const ema50 = TA.ema(closes, 50);
     const rsi = TA.rsi(closes, 14);
     const bb = TA.bollinger(closes, 20, 2);
-    if (ema20.length === 0 || ema50.length === 0) return { score: 0, reason: "Calculando...", direction: null, duration: 5, durationUnit: 't' };
+    if (ema20.length === 0 || ema50.length === 0) return { score: 0, reason: "Calculando...", direction: null, duration: 5, durationUnit: 't', details: {} };
     const lastEma20 = ema20[ema20.length - 1];
     const lastEma50 = ema50[ema50.length - 1];
     const lastRsi = rsi.length > 0 ? rsi[rsi.length - 1] : 50;
@@ -99,6 +98,17 @@ const StrategyEngine = {
     const lastBBLower = bb.lower[bb.lower.length - 1];
     let score = 0, reasons = [], direction = null;
     const durationObj = TA.calculateDuration(candles);
+    
+    const details = {
+      price: lastClose,
+      ema20: lastEma20,
+      ema50: lastEma50,
+      rsi: lastRsi,
+      bbUpper: lastBBUpper,
+      bbLower: lastBBLower,
+      highest20: Math.max(...highs.slice(-20)),
+      lowest20: Math.min(...lows.slice(-20))
+    };
     
     if (strategy === 'A') {
       if (lastClose > lastEma20 && lastEma20 > lastEma50 && lastRsi > 50 && lastRsi < 75) { score += 40; reasons.push("Tendencia alcista"); direction = 'CALL'; }
@@ -116,7 +126,7 @@ const StrategyEngine = {
     
     if (Math.abs(lastEma20 - lastEma50) < (lastClose * 0.001)) { score -= 20; reasons.push("Lateral"); }
     score = Math.max(0, Math.min(100, score));
-    return { score, reason: reasons.join(', ') || "Sin señal", direction, duration: durationObj.value, durationUnit: durationObj.unit, indicators: { ema20: lastEma20, ema50: lastEma50, rsi: lastRsi, bbUpper: lastBBUpper, bbLower: lastBBLower, price: lastClose } };
+    return { score, reason: reasons.join(', ') || "Sin señal", direction, duration: durationObj.value, durationUnit: durationObj.unit, indicators: details, details };
   }
 };
 
@@ -126,11 +136,11 @@ const StrategyEngine = {
 const AIEngine = {
   weights: { ema: 0.3, rsi: 0.25, bb: 0.25, breakout: 0.2 },
   evaluate: (candles) => {
-    if (candles.length < 50) return { score: 0, reason: "Datos insuficientes", direction: null, duration: 5, durationUnit: 't' };
+    if (candles.length < 50) return { score: 0, reason: "Datos insuficientes", direction: null, duration: 5, durationUnit: 't', details: {} };
     const closes = candles.map(c => c.close);
     const highs = candles.map(c => c.high);
     const lows = candles.map(c => c.low);
-    const lastClose = closes[candles.length - 1];
+    const lastClose = closes[closes.length - 1];
     const ema20 = TA.ema(closes, 20);
     const ema50 = TA.ema(closes, 50);
     const lastEma20 = ema20[ema20.length - 1];
@@ -165,20 +175,24 @@ const AIEngine = {
     if (bbSignal !== 0) reasons.push(`BB ${bbSignal > 0 ? 'sobreventa' : 'sobrecompra'}`);
     if (breakoutSignal !== 0) reasons.push(`Breakout ${breakoutSignal > 0 ? '▲' : '▼'}`);
     const durationObj = TA.calculateDuration(candles);
-    return { score: Math.min(100, score), reason: reasons.join(', ') || 'Sin confluencia', direction, duration: durationObj.value, durationUnit: durationObj.unit, indicators: { ema20: lastEma20, ema50: lastEma50, rsi: lastRsi, bbUpper: lastBBUpper, bbLower: lastBBLower, price: lastClose } };
+    
+    const details = {
+      price: lastClose,
+      ema20: lastEma20,
+      ema50: lastEma50,
+      rsi: lastRsi,
+      bbUpper: lastBBUpper,
+      bbLower: lastBBLower,
+      emaSignal, rsiSignal, bbSignal, breakoutSignal,
+      highest20, lowest20
+    };
+    
+    return { score: Math.min(100, score), reason: reasons.join(', ') || 'Sin confluencia', direction, duration: durationObj.value, durationUnit: durationObj.unit, indicators: details, details };
   }
 };
 
-// ==========================================
-// UTILIDADES
-// ==========================================
-function round2(num) {
-  return Math.round(num * 100) / 100;
-}
-
-function timestamp() {
-  return new Date().toLocaleTimeString('es-ES', { hour12: false });
-}
+function round2(num) { return Math.round(num * 100) / 100; }
+function timestamp() { return new Date().toLocaleTimeString('es-ES', { hour12: false }); }
 
 // ==========================================
 // GESTIÓN DE RIESGO
@@ -214,13 +228,9 @@ class RiskManager {
 
   recordTrade(isWin) {
     this.tradesToday++;
-    if (isWin) { 
-      this.wins++; 
-      this.lossStreak = 0; 
-      this.currentStake = this.baseStake; 
-    } else {
-      this.losses++; 
-      this.lossStreak++;
+    if (isWin) { this.wins++; this.lossStreak = 0; this.currentStake = this.baseStake; }
+    else {
+      this.losses++; this.lossStreak++;
       if (this.lossStreak >= this.maxLossStreak) {
         this.isPaused = true;
         this.pauseEndTime = Date.now() + 15 * 60 * 1000;
@@ -230,13 +240,11 @@ class RiskManager {
     }
   }
 
-  updateBalance(newBalance) {
-    this.currentBalance = newBalance;
-  }
+  updateBalance(newBalance) { this.currentBalance = newBalance; }
 }
 
 // ==========================================
-// FUNCIONES DE API
+// API
 // ==========================================
 async function getAllAccounts() {
   try {
@@ -247,7 +255,7 @@ async function getAllAccounts() {
     const data = await res.json();
     return data.data || [];
   } catch (error) {
-    console.error(`[${timestamp()}] ❌ Error obteniendo cuentas:`, error.message);
+    console.error(`[${timestamp()}] ❌ Error cuentas:`, error.message);
     return [];
   }
 }
@@ -262,7 +270,7 @@ async function getPrivateUrl(accountId) {
     const data = await res.json();
     return data.data?.url || null;
   } catch (error) {
-    console.error(`[${timestamp()}] ❌ Error obteniendo URL privada:`, error.message);
+    console.error(`[${timestamp()}] ❌ Error URL privada:`, error.message);
     return null;
   }
 }
@@ -271,43 +279,29 @@ async function getPrivateUrl(accountId) {
 // SERVIDOR PRINCIPAL
 // ==========================================
 wss.on('connection', async (ws) => {
-  console.log(`[${timestamp()}] ✅ [SERVER] Cliente conectado al proxy`);
+  console.log(`[${timestamp()}] ✅ [SERVER] Cliente conectado`);
   let derivWs = null;
   let currentAccountId = null;
   let candles = [];
-  let subscriptionId = null;
   let riskManager = null;
-  let botConfig = {
-    threshold: 75,
-    strategy: 'AI',
-    symbol: 'R_75',
-    granularity: 300,
-    mode: 'sim',
-    stake: 0.35,
-    isRunning: false
-  };
+  let botConfig = { threshold: 75, strategy: 'AI', symbol: 'R_75', granularity: 300, mode: 'sim', stake: 0.35, isRunning: false };
   let analysisInterval = null;
   let analysisCount = 0;
   let lastAnalysisTime = null;
-  let clientWs = ws;
+  let lastPrice = 0;
+  let tickCount = 0;
   let heartbeatInterval = null;
 
   try {
     const accounts = await getAllAccounts();
-    console.log(`[${timestamp()}] 📋 [SERVER] ${accounts.length} cuentas disponibles`);
+    console.log(`[${timestamp()}] 📋 ${accounts.length} cuentas disponibles`);
     
     ws.send(JSON.stringify({ 
       type: 'ACCOUNTS_LIST', 
-      accounts: accounts.map(a => ({
-        id: a.account_id,
-        type: a.account_type,
-        balance: parseFloat(a.balance),
-        currency: a.currency,
-        status: a.status
-      }))
+      accounts: accounts.map(a => ({ id: a.account_id, type: a.account_type, balance: parseFloat(a.balance), currency: a.currency, status: a.status }))
     }));
 
-    // ✅ HEARTBEAT: Enviar estado cada 10 segundos al cliente
+    // ✅ HEARTBEAT cada 5 segundos con estado completo
     heartbeatInterval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ 
@@ -317,10 +311,13 @@ wss.on('connection', async (ws) => {
           analysisCount: analysisCount,
           lastAnalysisTime: lastAnalysisTime,
           candlesCount: candles.length,
-          accountId: currentAccountId
+          accountId: currentAccountId,
+          lastPrice: lastPrice,
+          tickCount: tickCount,
+          config: botConfig
         }));
       }
-    }, 10000);
+    }, 5000);
 
     ws.on('message', async (msg) => {
       try {
@@ -328,12 +325,9 @@ wss.on('connection', async (ws) => {
 
         if (data.type === 'SELECT_ACCOUNT') {
           const accountId = data.account_id;
-          console.log(`[${timestamp()}] 🎯 [SERVER] Cliente seleccionó: ${accountId}`);
+          console.log(`[${timestamp()}] 🎯 Cliente seleccionó: ${accountId}`);
           currentAccountId = accountId;
-
-          if (derivWs && derivWs.readyState === WebSocket.OPEN) {
-            derivWs.close();
-          }
+          if (derivWs && derivWs.readyState === WebSocket.OPEN) derivWs.close();
 
           const privateUrl = await getPrivateUrl(accountId);
           if (!privateUrl) {
@@ -341,31 +335,23 @@ wss.on('connection', async (ws) => {
             return;
           }
 
-          console.log(`[${timestamp()}] 🔗 [SERVER] Conectando a Deriv para ${accountId}`);
-
-          derivWs = new WebSocket(privateUrl, {
-            headers: { 'Deriv-App-ID': DERIV_APP_ID }
-          });
+          console.log(`[${timestamp()}] 🔗 Conectando a Deriv...`);
+          derivWs = new WebSocket(privateUrl, { headers: { 'Deriv-App-ID': DERIV_APP_ID } });
 
           derivWs.on('open', () => {
-            console.log(`[${timestamp()}] 🟢 [SERVER] Conectado a Deriv (${accountId})`);
+            console.log(`[${timestamp()}] 🟢 Conectado a Deriv (${accountId})`);
             ws.send(JSON.stringify({ type: 'CONNECTED', account_id: accountId }));
             
             const account = accounts.find(a => a.account_id === accountId);
             const balance = account ? parseFloat(account.balance) : 1000;
             riskManager = new RiskManager(balance, botConfig.stake);
-            console.log(`[${timestamp()}] 💰 [SERVER] Balance inicial: $${balance.toFixed(2)}`);
+            console.log(`[${timestamp()}] 💰 Balance: $${balance.toFixed(2)}`);
             
             derivWs.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-            console.log(`[${timestamp()}] 📡 [SERVER] Solicitando velas: ${botConfig.symbol} (${botConfig.granularity}s)`);
+            console.log(`[${timestamp()}] 📡 Solicitando velas: ${botConfig.symbol} (${botConfig.granularity}s)`);
             derivWs.send(JSON.stringify({
-              ticks_history: botConfig.symbol,
-              adjust_start_time: 1,
-              count: 100,
-              end: 'latest',
-              style: 'candles',
-              granularity: botConfig.granularity,
-              subscribe: 1
+              ticks_history: botConfig.symbol, adjust_start_time: 1, count: 100, end: 'latest',
+              style: 'candles', granularity: botConfig.granularity, subscribe: 1
             }));
           });
 
@@ -376,34 +362,32 @@ wss.on('connection', async (ws) => {
           });
 
           derivWs.on('close', () => {
-            console.log(`[${timestamp()}] 🔴 [SERVER] Deriv cerró conexión`);
+            console.log(`[${timestamp()}] 🔴 Deriv cerró conexión`);
             ws.send(JSON.stringify({ type: 'DISCONNECTED' }));
             if (analysisInterval) { clearInterval(analysisInterval); analysisInterval = null; }
           });
 
-          derivWs.on('error', (err) => {
-            console.error(`[${timestamp()}] ❌ [SERVER] Error Deriv:`, err.message);
-          });
+          derivWs.on('error', (err) => console.error(`[${timestamp()}] ❌ Error Deriv:`, err.message));
         }
         else if (data.type === 'UPDATE_CONFIG') {
           botConfig = { ...botConfig, ...data.config };
-          console.log(`[${timestamp()}] ⚙️ [SERVER] Configuración actualizada:`, JSON.stringify(botConfig));
+          console.log(`[${timestamp()}] ⚙️ Config: ${JSON.stringify(botConfig)}`);
           ws.send(JSON.stringify({ type: 'CONFIG_UPDATED', config: botConfig }));
         }
         else if (data.type === 'START_BOT') {
           if (candles.length < 50) {
-            console.log(`[${timestamp()}] ⚠️ [SERVER] No se puede iniciar: solo ${candles.length} velas`);
+            console.log(`[${timestamp()}] ⚠️ No se puede iniciar: ${candles.length}/50 velas`);
             ws.send(JSON.stringify({ type: 'ERROR', message: `Esperando datos: ${candles.length}/50 velas` }));
             return;
           }
           botConfig.isRunning = true;
-          console.log(`[${timestamp()}] 🤖 [SERVER] Bot iniciado - Estrategia: ${botConfig.strategy}, Umbral: ${botConfig.threshold}`);
+          console.log(`[${timestamp()}] 🤖 BOT INICIADO - Estrategia: ${botConfig.strategy}, Umbral: ${botConfig.threshold}`);
           ws.send(JSON.stringify({ type: 'BOT_STARTED' }));
           startAnalysis();
         }
         else if (data.type === 'STOP_BOT') {
           botConfig.isRunning = false;
-          console.log(`[${timestamp()}] 🛑 [SERVER] Bot detenido`);
+          console.log(`[${timestamp()}] 🛑 BOT DETENIDO`);
           ws.send(JSON.stringify({ type: 'BOT_STOPPED' }));
           if (analysisInterval) { clearInterval(analysisInterval); analysisInterval = null; }
         }
@@ -411,23 +395,22 @@ wss.on('connection', async (ws) => {
           derivWs.send(msg.toString());
         }
       } catch (err) {
-        console.error(`[${timestamp()}] ❌ [SERVER] Error procesando mensaje:`, err.message);
+        console.error(`[${timestamp()}] ❌ Error:`, err.message);
       }
     });
 
     ws.on('close', () => {
-      console.log(`[${timestamp()}] ⚪ [SERVER] Cliente desconectado`);
-      if (analysisInterval) { clearInterval(analysisInterval); analysisInterval = null; }
-      if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+      console.log(`[${timestamp()}] ⚪ Cliente desconectado`);
+      if (analysisInterval) clearInterval(analysisInterval);
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
       if (derivWs && derivWs.readyState === WebSocket.OPEN) derivWs.close();
     });
-
   } catch (error) {
-    console.error(`[${timestamp()}] ❌ [SERVER] Error crítico:`, error.message);
+    console.error(`[${timestamp()}] ❌ Error crítico:`, error.message);
   }
 
   // ==========================================
-  // FUNCIONES DE ANÁLISIS Y TRADING
+  // MANEJO DE MENSAJES DE DERIV
   // ==========================================
   function handleDerivMessage(data, derivWs, clientWs) {
     if (data.msg_type === 'balance') {
@@ -437,28 +420,20 @@ wss.on('connection', async (ws) => {
     }
 
     if (data.msg_type === 'candles' && Array.isArray(data.candles)) {
-      candles = data.candles.map(c => ({ 
-        time: c.epoch, 
-        open: parseFloat(c.open), 
-        high: parseFloat(c.high), 
-        low: parseFloat(c.low), 
-        close: parseFloat(c.close) 
-      }));
+      candles = data.candles.map(c => ({ time: c.epoch, open: parseFloat(c.open), high: parseFloat(c.high), low: parseFloat(c.low), close: parseFloat(c.close) }));
       if (candles.length > 100) candles = candles.slice(-100);
-      console.log(`[${timestamp()}] 📊 [SERVER] Histórico recibido: ${candles.length} velas`);
-      clientWs.send(JSON.stringify({ type: 'CANDLES_UPDATE', count: candles.length }));
+      if (candles.length > 0) lastPrice = candles[candles.length - 1].close;
+      console.log(`[${timestamp()}] 📊 Histórico: ${candles.length} velas | Precio: ${lastPrice.toFixed(2)}`);
+      clientWs.send(JSON.stringify({ type: 'CANDLES_UPDATE', count: candles.length, lastPrice }));
     }
 
     if (data.msg_type === 'ohlc') {
       const ohlc = data.ohlc;
       const candleTime = parseInt(ohlc.open_time);
-      const candle = { 
-        time: candleTime, 
-        open: parseFloat(ohlc.open), 
-        high: parseFloat(ohlc.high), 
-        low: parseFloat(ohlc.low), 
-        close: parseFloat(ohlc.close) 
-      };
+      const candle = { time: candleTime, open: parseFloat(ohlc.open), high: parseFloat(ohlc.high), low: parseFloat(ohlc.low), close: parseFloat(ohlc.close) };
+      lastPrice = candle.close;
+      tickCount++;
+      
       const lastCandle = candles[candles.length - 1];
       if (lastCandle && lastCandle.time === candleTime) {
         candles[candles.length - 1] = candle;
@@ -467,35 +442,39 @@ wss.on('connection', async (ws) => {
         if (!isDuplicate) {
           candles.push(candle);
           if (candles.length > 100) candles = candles.slice(-100);
-          console.log(`[${timestamp()}] 🕯️ [SERVER] Nueva vela. Total: ${candles.length} | Precio: ${candle.close.toFixed(2)}`);
-          clientWs.send(JSON.stringify({ type: 'NEW_CANDLE', count: candles.length, price: candle.close }));
+          console.log(`[${timestamp()}] 🕯️ Nueva vela #${candles.length} | Precio: ${candle.close.toFixed(2)}`);
         }
       }
+      
+      // ✅ Enviar tick en tiempo real al panel
+      clientWs.send(JSON.stringify({ 
+        type: 'TICK', 
+        price: lastPrice, 
+        tickCount: tickCount,
+        candlesCount: candles.length,
+        timestamp: Date.now()
+      }));
     }
 
     if (data.msg_type === 'proposal') {
       if (data.error) {
-        console.log(`[${timestamp()}] ❌ [SERVER] Error propuesta: ${data.error.message}`);
+        console.log(`[${timestamp()}] ❌ Error propuesta: ${data.error.message}`);
         clientWs.send(JSON.stringify({ type: 'PROPOSAL_ERROR', message: data.error.message }));
         return;
       }
-      console.log(`[${timestamp()}] ✅ [SERVER] Propuesta recibida: ${data.proposal.id}`);
+      console.log(`[${timestamp()}] ✅ Propuesta: ${data.proposal.id}`);
       derivWs.send(JSON.stringify({ buy: data.proposal.id, price: data.proposal.ask_price }));
     }
 
     if (data.msg_type === 'buy') {
       if (data.error) {
-        console.log(`[${timestamp()}] ❌ [SERVER] Error compra: ${data.error.message}`);
+        console.log(`[${timestamp()}] ❌ Error compra: ${data.error.message}`);
         clientWs.send(JSON.stringify({ type: 'BUY_ERROR', message: data.error.message }));
         return;
       }
-      console.log(`[${timestamp()}] 💼 [SERVER] Operación ejecutada: ${data.buy.contract_id}`);
+      console.log(`[${timestamp()}] 💼 Operación: ${data.buy.contract_id}`);
       clientWs.send(JSON.stringify({ type: 'TRADE_EXECUTED', contractId: data.buy.contract_id }));
-      derivWs.send(JSON.stringify({ 
-        proposal_open_contract: 1, 
-        contract_id: data.buy.contract_id, 
-        subscribe: 1 
-      }));
+      derivWs.send(JSON.stringify({ proposal_open_contract: 1, contract_id: data.buy.contract_id, subscribe: 1 }));
     }
 
     if (data.msg_type === 'proposal_open_contract' && data.proposal_open_contract.is_sold) {
@@ -503,87 +482,68 @@ wss.on('connection', async (ws) => {
       const isWin = profit > 0;
       if (riskManager) {
         riskManager.recordTrade(isWin);
-        console.log(`[${timestamp()}] ${isWin ? '✅' : '❌'} [SERVER] Trade ${isWin ? 'GANADO' : 'PERDIDO'}: $${profit.toFixed(2)} | Balance: $${riskManager.currentBalance.toFixed(2)}`);
+        console.log(`[${timestamp()}] ${isWin ? '✅' : '❌'} Trade ${isWin ? 'GANADO' : 'PERDIDO'}: $${profit.toFixed(2)} | Balance: $${riskManager.currentBalance.toFixed(2)}`);
         clientWs.send(JSON.stringify({ 
-          type: 'TRADE_RESULT', 
-          isWin, 
-          profit, 
-          stats: {
-            tradesToday: riskManager.tradesToday,
-            wins: riskManager.wins,
-            losses: riskManager.losses,
-            lossStreak: riskManager.lossStreak,
-            currentStake: riskManager.currentStake,
-            balance: riskManager.currentBalance
-          }
+          type: 'TRADE_RESULT', isWin, profit, 
+          stats: { tradesToday: riskManager.tradesToday, wins: riskManager.wins, losses: riskManager.losses, lossStreak: riskManager.lossStreak, currentStake: riskManager.currentStake, balance: riskManager.currentBalance }
         }));
       }
     }
   }
 
+  // ==========================================
+  // CICLO DE ANÁLISIS
+  // ==========================================
   function startAnalysis() {
     if (analysisInterval) clearInterval(analysisInterval);
-    
-    console.log(`[${timestamp()}] 🔄 [SERVER] Iniciando ciclo de análisis cada 5 segundos`);
+    console.log(`[${timestamp()}] 🔄 Ciclo de análisis iniciado (cada 5s)`);
     
     analysisInterval = setInterval(() => {
-      if (!botConfig.isRunning) {
-        return;
-      }
+      if (!botConfig.isRunning) return;
       
       if (candles.length < 50) {
-        console.log(`[${timestamp()}] ⚠️ [SERVER] Esperando datos: ${candles.length}/50 velas`);
+        console.log(`[${timestamp()}] ⚠️ Esperando datos: ${candles.length}/50`);
         return;
       }
       
-      if (!riskManager) {
-        console.log(`[${timestamp()}] ⚠️ [SERVER] RiskManager no inicializado`);
-        return;
-      }
+      if (!riskManager) return;
 
       analysisCount++;
       lastAnalysisTime = Date.now();
 
       let eval;
-      if (botConfig.strategy === 'AI') {
-        eval = AIEngine.evaluate(candles);
-      } else {
-        eval = StrategyEngine.evaluate(botConfig.strategy, candles);
-      }
+      if (botConfig.strategy === 'AI') eval = AIEngine.evaluate(candles);
+      else eval = StrategyEngine.evaluate(botConfig.strategy, candles);
       
-      // ✅ LOG DETALLADO de cada análisis
-      console.log(`[${timestamp()}] 📊 [ANÁLISIS #${analysisCount}] Score: ${eval.score.toFixed(1)} | Dir: ${eval.direction || 'N/A'} | Razón: ${eval.reason}`);
+      // ✅ LOG DETALLADO en servidor
+      console.log(`[${timestamp()}] 📊 ANÁLISIS #${analysisCount} | Score: ${eval.score.toFixed(1)} | Dir: ${eval.direction || 'N/A'} | ${eval.reason}`);
       
+      // ✅ Enviar análisis detallado al panel
       clientWs.send(JSON.stringify({ 
         type: 'ANALYSIS', 
         score: eval.score, 
         direction: eval.direction,
         reason: eval.reason,
-        indicators: eval.indicators,
+        details: eval.details,
         analysisCount: analysisCount,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        threshold: botConfig.threshold,
+        strategy: botConfig.strategy
       }));
 
       if (eval.score >= botConfig.threshold && eval.direction) {
         const riskCheck = riskManager.canTrade();
         if (riskCheck.allowed) {
           if (botConfig.mode === 'live') {
-            console.log(`[${timestamp()}] 🎯 [SERVER] SEÑAL LIVE: ${eval.direction} | Score: ${eval.score.toFixed(1)}`);
+            console.log(`[${timestamp()}] 🎯 SEÑAL LIVE: ${eval.direction} | Score: ${eval.score.toFixed(1)}`);
             executeTrade(eval.direction, eval.duration, eval.durationUnit);
           } else {
-            console.log(`[${timestamp()}] 🎯 [SERVER] SEÑAL SIMULACIÓN: ${eval.direction} | Score: ${eval.score.toFixed(1)}`);
-            clientWs.send(JSON.stringify({ 
-              type: 'SIMULATION_SIGNAL', 
-              direction: eval.direction, 
-              score: eval.score 
-            }));
+            console.log(`[${timestamp()}] 🎯 SEÑAL SIM: ${eval.direction} | Score: ${eval.score.toFixed(1)}`);
+            clientWs.send(JSON.stringify({ type: 'SIMULATION_SIGNAL', direction: eval.direction, score: eval.score }));
           }
         } else {
-          console.log(`[${timestamp()}] ⚠️ [SERVER] Señal ignorada: ${riskCheck.reason}`);
-          clientWs.send(JSON.stringify({ 
-            type: 'SIGNAL_IGNORED', 
-            reason: riskCheck.reason 
-          }));
+          console.log(`[${timestamp()}] ⚠️ Señal ignorada: ${riskCheck.reason}`);
+          clientWs.send(JSON.stringify({ type: 'SIGNAL_IGNORED', reason: riskCheck.reason }));
         }
       }
     }, 5000);
@@ -591,23 +551,15 @@ wss.on('connection', async (ws) => {
 
   function executeTrade(direction, duration, durationUnit) {
     const stake = round2(riskManager.currentStake);
-    if (stake < 0.35) {
-      console.log(`[${timestamp()}] ⚠️ [SERVER] Stake demasiado bajo: $${stake}`);
-      return;
-    }
+    if (stake < 0.35) return;
     
     const proposal = {
-      proposal: 1,
-      amount: parseFloat(stake.toFixed(2)),
-      basis: 'stake',
-      contract_type: direction,
-      currency: 'USD',
-      duration: duration,
-      duration_unit: durationUnit,
-      underlying_symbol: botConfig.symbol
+      proposal: 1, amount: parseFloat(stake.toFixed(2)), basis: 'stake',
+      contract_type: direction, currency: 'USD', duration: duration,
+      duration_unit: durationUnit, underlying_symbol: botConfig.symbol
     };
     
-    console.log(`[${timestamp()}] 📤 [SERVER] Enviando propuesta: ${JSON.stringify(proposal)}`);
+    console.log(`[${timestamp()}] 📤 Enviando: ${JSON.stringify(proposal)}`);
     derivWs.send(JSON.stringify(proposal));
   }
 });
